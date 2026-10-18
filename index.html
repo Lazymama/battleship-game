@@ -121,65 +121,6 @@
     window.Telegram.WebApp.expand();
   }
 
-  // Pure Web Audio API Synth (Clean, immediate, zero background noise)
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  function playSound(type) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-
-    if (type === 'hit') {
-      // Deep heavy explosion thud
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.35);
-      
-      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.35);
-
-      // Trigger screen shake
-      const boardBox = document.getElementById('board-box');
-      boardBox.classList.add('shake');
-      setTimeout(() => boardBox.classList.remove('shake'), 300);
-
-    } else if (type === 'miss') {
-      // Crisp water splash pop
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.15);
-
-      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.15);
-
-    } else if (type === 'ability') {
-      // Clean radar beep
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.1);
-    }
-  }
-
   let currentTab = 'target';
   let activeAbility = 'normal';
   let energy = 3;
@@ -248,7 +189,6 @@
     if (ability === 'radar' && energy < 2) return updateStatus('Not enough energy for Radar!');
     if (ability === 'airstrike' && energy < 4) return updateStatus('Not enough energy for Airstrike!');
     
-    playSound('ability');
     activeAbility = ability;
     document.querySelectorAll('.ability-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${ability}`).classList.add('active');
@@ -277,17 +217,20 @@
     if (enemyBoard[idx] === 1) {
       playerHits++;
       energy = Math.min(10, energy + 1);
-      playSound('hit');
+      
+      // Trigger screen shake on hit
+      const boardBox = document.getElementById('board-box');
+      boardBox.classList.add('shake');
+      setTimeout(() => boardBox.classList.remove('shake'), 300);
+
       updateStatus('🎯 DIRECT HIT! +1 Energy');
     } else {
-      playSound('miss');
       updateStatus('💦 Sploosh! Missed.');
     }
   }
 
   function scanRadar(idx) {
     activeAbility = 'normal';
-    playSound('ability');
     let row = Math.floor(idx / 10);
     let col = idx % 10;
     let found = false;
@@ -313,7 +256,7 @@
     updateStatus('💥 AIRSTRIKE DELIVERED!');
   }
 
-  updateStatus(msg) {
+  function updateStatus(msg) {
     document.getElementById('status-msg').innerText = msg;
   }
 
