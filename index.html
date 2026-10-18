@@ -22,16 +22,19 @@
   body { background: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; overflow-x: hidden; padding-bottom: 20px; }
 
   header { width: 100%; padding: 12px 16px; background: var(--panel-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e3a5f; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-  .title { font-weight: 800; font-size: 1.1rem; color: var(--accent-blue); letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
-  .energy-badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; }
+  .title { font-weight: 900; font-size: 1.05rem; color: var(--accent-red); letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
+  
+  .header-badges { display: flex; gap: 6px; align-items: center; }
+  .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); cursor: pointer; }
+  .badge.audio-toggle { color: var(--accent-green); border-color: var(--accent-green); }
 
-  .mode-switch { margin: 12px 0 6px 0; display: flex; gap: 8px; background: #0e1a26; padding: 4px; border-radius: 12px; border: 1px solid #1e3a5f; }
-  .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
-  .tab-btn.active { background: var(--accent-blue); color: #000; box-shadow: 0 0 10px rgba(0, 188, 212, 0.4); }
+  .mode-switch { margin: 10px 0 4px 0; display: flex; gap: 8px; background: #0e1a26; padding: 4px; border-radius: 12px; border: 1px solid #1e3a5f; }
+  .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 82, 82, 0.5); }
 
-  .status-bar { text-align: center; margin: 6px 0; font-weight: 600; font-size: 0.9rem; min-height: 24px; color: var(--accent-green); text-shadow: 0 0 8px rgba(0,230,118,0.3); }
+  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.85rem; min-height: 22px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
 
-  .board-container { width: 340px; height: 340px; margin: 8px 0; position: relative; background: var(--panel-bg); border-radius: 16px; padding: 10px; border: 2px solid #1e3a5f; box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: transform 0.1s; }
+  .board-container { width: 340px; height: 340px; margin: 6px 0; position: relative; background: var(--panel-bg); border-radius: 16px; padding: 10px; border: 2px solid #1e3a5f; box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: transform 0.1s; }
   .board-container.shake { animation: screenShake 0.3s ease-in-out; }
 
   .grid { display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; width: 100%; height: 100%; }
@@ -44,6 +47,22 @@
   .cell.miss { background: rgba(255, 255, 255, 0.05); }
   .cell.miss::after { content: '💧'; font-size: 0.8rem; animation: splashAnim 0.3s ease-out; }
   .cell.scanned { animation: radarPulse 1.2s ease-out; }
+
+  .floating-text {
+    position: absolute;
+    color: var(--accent-yellow);
+    font-weight: 900;
+    font-size: 0.85rem;
+    pointer-events: none;
+    animation: floatUp 0.8s ease-out forwards;
+    text-shadow: 0 0 6px rgba(0,0,0,0.9);
+    z-index: 10;
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(0) scale(0.8); opacity: 1; }
+    100% { transform: translateY(-35px) scale(1.2); opacity: 0; }
+  }
 
   @keyframes explodeAnim { 
     0% { transform: scale(0) rotate(0deg); opacity: 0; } 
@@ -63,33 +82,53 @@
   }
   @keyframes radarPulse { 0% { background: rgba(0, 230, 118, 0.6); } 100% { background: var(--grid-water); } }
 
-  .actions { width: 340px; display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
-  .ability-btn { flex: 1; background: #162c46; border: 1px solid #234873; color: var(--text-main); padding: 10px; border-radius: 10px; font-weight: 600; font-size: 0.8rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; }
-  .ability-btn.active { border-color: var(--accent-yellow); background: #223f63; box-shadow: 0 0 12px rgba(255, 215, 0, 0.3); }
-  .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .ability-cost { font-size: 0.7rem; color: var(--accent-yellow); font-weight: bold; }
+  .actions { width: 340px; display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+  .ability-btn { flex: 1; background: #162c46; border: 1px solid #234873; color: var(--text-main); padding: 8px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s; position: relative; }
+  .ability-btn.active { border-color: var(--accent-yellow); background: #223f63; box-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }
+  
+  .ability-btn.ready { border-color: var(--accent-green); box-shadow: 0 0 10px rgba(0, 230, 118, 0.3); animation: pulseGlow 2s infinite; }
+  @keyframes pulseGlow {
+    0% { box-shadow: 0 0 5px rgba(0, 230, 118, 0.2); }
+    50% { box-shadow: 0 0 12px rgba(0, 230, 118, 0.5); }
+    100% { box-shadow: 0 0 5px rgba(0, 230, 118, 0.2); }
+  }
 
-  .controls { width: 340px; margin-top: 12px; }
-  .btn-primary { width: 100%; padding: 12px; background: linear-gradient(135deg, #00bcd4, #00838f); border: none; border-radius: 12px; color: #000; font-weight: 800; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 188, 212, 0.4); }
+  .ability-cost { font-size: 0.65rem; color: var(--accent-yellow); font-weight: bold; }
+
+  .controls { width: 340px; margin-top: 10px; display: flex; gap: 8px; }
+  .btn-primary { flex: 1; padding: 10px; background: linear-gradient(135deg, #ff5252, #b71c1c); border: none; border-radius: 12px; color: #fff; font-weight: 900; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(255, 82, 82, 0.4); transition: transform 0.1s; }
+  .btn-primary:active { transform: scale(0.97); }
 
   .radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; border-radius: 12px; overflow: hidden; opacity: 0.15; }
-  .radar-line { width: 100%; height: 100%; background: conic-gradient(from 0deg at 50% 50%, rgba(0, 230, 118, 0.4) 0deg, transparent 60deg, transparent 360deg); animation: spin 4s linear infinite; }
+  .radar-line { width: 100%; height: 100%; background: conic-gradient(from 0deg at 50% 50%, rgba(255, 82, 82, 0.4) 0deg, transparent 60deg, transparent 360deg); animation: spin 4s linear infinite; }
   @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  /* Modal Overlay */
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.9); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal-card { background: var(--panel-bg); border: 2px solid var(--accent-red); border-radius: 20px; padding: 24px; text-align: center; width: 310px; box-shadow: 0 0 30px rgba(255, 82, 82, 0.4); transform: scale(0.8); transition: transform 0.3s ease; }
+  .modal-overlay.show .modal-card { transform: scale(1); }
+  .modal-title { font-size: 1.5rem; font-weight: 900; color: var(--accent-red); margin-bottom: 8px; letter-spacing: 1px; }
+  .modal-text { font-size: 0.9rem; color: var(--text-main); margin-bottom: 16px; font-weight: 600; }
+  .stats-box { background: #080e15; border-radius: 10px; padding: 10px; margin-bottom: 16px; font-size: 0.85rem; display: flex; justify-content: space-around; color: var(--text-main); font-weight: bold; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="title">⚓ BATTLESHIP PRO</div>
-  <div class="energy-badge">⚡ Energy: <span id="energy-val">3</span></div>
+  <div class="title">☠️ BATTLESHIP UNRATED</div>
+  <div class="header-badges">
+    <div class="badge audio-toggle" id="audio-btn" onclick="toggleAudio()">🔊 Sound</div>
+    <div class="badge">⚡ <span id="energy-val">3</span></div>
+  </div>
 </header>
 
 <div class="mode-switch">
-  <button class="tab-btn active" id="tab-target" onclick="switchTab('target')">🎯 Attack Grid</button>
-  <button class="tab-btn" id="tab-fleet" onclick="switchTab('fleet')">🛡️ My Fleet</button>
+  <button class="tab-btn active" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
+  <button class="tab-btn" id="tab-fleet" onclick="switchTab('fleet')">🛡️ War Fleet</button>
 </div>
 
-<div class="status-bar" id="status-msg">Tap grid to fire torpedo!</div>
+<div class="status-bar" id="status-msg">TARGET ACQUIRED. OPEN FIRE, COMMANDER.</div>
 
 <div class="board-container" id="board-box">
   <div class="radar-sweep"><div class="radar-line"></div></div>
@@ -98,21 +137,34 @@
 
 <div class="actions">
   <button class="ability-btn" id="btn-normal" onclick="selectAbility('normal')">
-    <span>🎯 Standard</span>
+    <span>🎯 Precision</span>
     <span class="ability-cost">FREE</span>
   </button>
   <button class="ability-btn" id="btn-radar" onclick="selectAbility('radar')">
-    <span>📡 Radar Scan</span>
+    <span>📡 Recon Probe</span>
     <span class="ability-cost">⚡ 2 Energy</span>
   </button>
   <button class="ability-btn" id="btn-airstrike" onclick="selectAbility('airstrike')">
-    <span>💥 Airstrike</span>
+    <span>💥 Hellfire</span>
     <span class="ability-cost">⚡ 4 Energy</span>
   </button>
 </div>
 
 <div class="controls">
-  <button class="btn-primary" onclick="resetGame()">🔄 New Game</button>
+  <button class="btn-primary" onclick="resetGame()">🔄 Restart Mission</button>
+</div>
+
+<!-- Victory Modal Overlay -->
+<div class="modal-overlay" id="victory-modal">
+  <div class="modal-card">
+    <div class="modal-title">☠️ TOTAL ANNIHILATION</div>
+    <div class="modal-text">The enemy fleet has been wiped off the fucking map. Total naval dominance achieved.</div>
+    <div class="stats-box">
+      <div>Kills: <span id="stat-wins">0</span></div>
+      <div>Battles: <span id="stat-games">0</span></div>
+    </div>
+    <button class="btn-primary" onclick="resetGame()">NEXT TARGET</button>
+  </div>
 </div>
 
 <script>
@@ -121,10 +173,19 @@
     window.Telegram.WebApp.expand();
   }
 
-  // Built-in Synthesized Audio (No files, no links, zero surprise whip cracks!)
+  // Audio System & State
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let soundEnabled = true;
+
+  function toggleAudio() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById('audio-btn');
+    btn.innerText = soundEnabled ? '🔊 Sound' : '🔇 Muted';
+    btn.style.borderColor = soundEnabled ? 'var(--accent-green)' : 'var(--accent-red)';
+  }
 
   function playSound(type) {
+    if (!soundEnabled) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -132,26 +193,40 @@
     gain.connect(audioCtx.destination);
 
     if (type === 'hit') {
-      // Deep, punchy explosion thud
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(140, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(25, audioCtx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
       gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.3);
 
+      const boardBox = document.getElementById('board-box');
+      boardBox.classList.add('shake');
+      setTimeout(() => boardBox.classList.remove('shake'), 300);
+
     } else if (type === 'miss') {
-      // Quick water drop blip
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(320, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(90, audioCtx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+
+    } else if (type === 'ability') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
       gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
       gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.15);
     }
   }
+
+  // Persistent Stats
+  let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, games: 0 };
 
   let currentTab = 'target';
   let activeAbility = 'normal';
@@ -161,15 +236,18 @@
   let enemyBoard = Array(100).fill(0);
   let enemyHits = Array(100).fill(false);
   let playerBoard = Array(100).fill(0);
+  let shipList = [];
 
   function init() {
-    placeRandomShips(enemyBoard, [5, 4, 3, 3, 2]);
+    shipList = placeRandomShips(enemyBoard, [5, 4, 3, 3, 2]);
     placeRandomShips(playerBoard, [5, 4, 3, 3, 2]);
     renderGrid();
+    updateUI();
   }
 
   function placeRandomShips(board, ships) {
     board.fill(0);
+    let generatedShips = [];
     ships.forEach(length => {
       let placed = false;
       while (!placed) {
@@ -178,6 +256,7 @@
         let col = Math.floor(Math.random() * (horiz ? 10 - length : 10));
         let idx = row * 10 + col;
         let spaceOk = true;
+        let shipIndices = [];
 
         for (let i = 0; i < length; i++) {
           let checkIdx = horiz ? idx + i : idx + i * 10;
@@ -188,11 +267,14 @@
           for (let i = 0; i < length; i++) {
             let fillIdx = horiz ? idx + i : idx + i * 10;
             board[fillIdx] = 1;
+            shipIndices.push(fillIdx);
           }
+          generatedShips.push(shipIndices);
           placed = true;
         }
       }
     });
+    return generatedShips;
   }
 
   function renderGrid() {
@@ -207,7 +289,7 @@
         if (enemyHits[i]) {
           cell.classList.add(enemyBoard[i] === 1 ? 'hit' : 'miss');
         } else {
-          cell.onclick = () => handleCellClick(i);
+          cell.onclick = (e) => handleCellClick(i, e);
         }
       } else {
         if (playerBoard[i] === 1) cell.classList.add('ship');
@@ -218,53 +300,86 @@
   }
 
   function selectAbility(ability) {
-    if (ability === 'radar' && energy < 2) return updateStatus('Not enough energy for Radar!');
-    if (ability === 'airstrike' && energy < 4) return updateStatus('Not enough energy for Airstrike!');
+    if (ability === 'radar' && energy < 2) return updateStatus('NEED ⚡ 2 ENERGY FOR RECON!');
+    if (ability === 'airstrike' && energy < 4) return updateStatus('NEED ⚡ 4 ENERGY FOR HELLFIRE!');
     
+    playSound('ability');
     activeAbility = ability;
-    document.querySelectorAll('.ability-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`btn-${ability}`).classList.add('active');
-    updateStatus(`Selected ${ability.toUpperCase()}! Tap grid target.`);
+    updateUI();
+    updateStatus(`${ability.toUpperCase()} ARMED! SELECT SECTOR.`);
   }
 
-  function handleCellClick(idx) {
+  function handleCellClick(idx, event) {
     if (enemyHits[idx] && activeAbility === 'normal') return;
 
     if (activeAbility === 'normal') {
-      fireAt(idx);
+      fireAt(idx, event);
     } else if (activeAbility === 'radar') {
       energy -= 2;
       scanRadar(idx);
     } else if (activeAbility === 'airstrike') {
       energy -= 4;
-      executeAirstrike(idx);
+      executeAirstrike(idx, event);
     }
 
     updateUI();
+    
+    if (playerHits >= 17) {
+      stats.wins++;
+      stats.games++;
+      localStorage.setItem('battleship_stats', JSON.stringify(stats));
+      document.getElementById('stat-wins').innerText = stats.wins;
+      document.getElementById('stat-games').innerText = stats.games;
+      document.getElementById('victory-modal').classList.add('show');
+    }
   }
 
-  function fireAt(idx) {
+  function fireAt(idx, event) {
     if (enemyHits[idx]) return;
     enemyHits[idx] = true;
+    
     if (enemyBoard[idx] === 1) {
       playerHits++;
       energy = Math.min(10, energy + 1);
-      
       playSound('hit');
-      
-      const boardBox = document.getElementById('board-box');
-      boardBox.classList.add('shake');
-      setTimeout(() => boardBox.classList.remove('shake'), 300);
+      showFloatingText(event, '💥 BOOM!');
 
-      updateStatus('🎯 DIRECT HIT! +1 Energy');
+      let sunkShipName = checkSunkShip();
+      if (sunkShipName) {
+        updateStatus(`🔥 HOSTILE WARSHIP DESTROYED! SINK 'EM ALL!`);
+      } else {
+        updateStatus('🎯 DIRECT HIT! TO THE BOTTOM OF THE OCEAN!');
+      }
     } else {
       playSound('miss');
-      updateStatus('💦 Sploosh! Missed.');
+      updateStatus('💦 SPLOOSH! NOTHING BUT WATER, DUMBASS.');
     }
+  }
+
+  function checkSunkShip() {
+    for (let ship of shipList) {
+      let allHit = ship.every(i => enemyHits[i]);
+      if (allHit && !ship.sunkAnnounced) {
+        ship.sunkAnnounced = true;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function showFloatingText(event, text) {
+    if (!event) return;
+    const cell = event.currentTarget;
+    const floatEl = document.createElement('div');
+    floatEl.className = 'floating-text';
+    floatEl.innerText = text;
+    cell.appendChild(floatEl);
+    setTimeout(() => floatEl.remove(), 800);
   }
 
   function scanRadar(idx) {
     activeAbility = 'normal';
+    playSound('ability');
     let row = Math.floor(idx / 10);
     let col = idx % 10;
     let found = false;
@@ -278,16 +393,16 @@
       }
     }
 
-    updateStatus(found ? '📡 RADAR DETECTED ENEMY ACTIVITY!' : '📡 Radar Clear. No ships found.');
+    updateStatus(found ? '📡 ENEMY WARSHIP DETECTED ON RADAR!' : '📡 RADAR CLEAR. NO SIGN OF ENEMY.');
   }
 
-  function executeAirstrike(centerIdx) {
+  function executeAirstrike(centerIdx, event) {
     activeAbility = 'normal';
     let targets = [centerIdx - 10, centerIdx, centerIdx + 10];
     targets.forEach(i => {
-      if (i >= 0 && i < 100) fireAt(i);
+      if (i >= 0 && i < 100) fireAt(i, event);
     });
-    updateStatus('💥 AIRSTRIKE DELIVERED!');
+    updateStatus('💥 HELLFIRE BARRAGE DELIVERED!');
   }
 
   function updateStatus(msg) {
@@ -296,8 +411,13 @@
 
   function updateUI() {
     document.getElementById('energy-val').innerText = energy;
-    document.querySelectorAll('.ability-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('btn-normal').classList.add('active');
+    
+    document.querySelectorAll('.ability-btn').forEach(b => b.classList.remove('active', 'ready'));
+    document.getElementById(`btn-${activeAbility}`).classList.add('active');
+
+    if (energy >= 2) document.getElementById('btn-radar').classList.add('ready');
+    if (energy >= 4) document.getElementById('btn-airstrike').classList.add('ready');
+
     renderGrid();
   }
 
@@ -309,12 +429,15 @@
   }
 
   function resetGame() {
+    stats.games++;
+    localStorage.setItem('battleship_stats', JSON.stringify(stats));
+    document.getElementById('victory-modal').classList.remove('show');
     energy = 3;
     playerHits = 0;
     enemyHits.fill(false);
-    placeRandomShips(enemyBoard, [5, 4, 3, 3, 2]);
+    shipList = placeRandomShips(enemyBoard, [5, 4, 3, 3, 2]);
     placeRandomShips(playerBoard, [5, 4, 3, 3, 2]);
-    updateStatus('New Game Started! Choose target.');
+    updateStatus('TARGET ACQUIRED. OPEN FIRE, COMMANDER.');
     updateUI();
   }
 
