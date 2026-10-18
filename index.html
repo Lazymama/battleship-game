@@ -94,11 +94,12 @@
   .btn-primary { flex: 1; padding: 10px; background: linear-gradient(135deg, #ff3344, #b71c1c); border: none; border-radius: 10px; color: #fff; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(50%); }
 
+  /* Fixed Modal System */
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.92); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
   .modal-overlay.show { opacity: 1; pointer-events: auto; }
-  .modal-card { background: var(--panel-bg); border: 2px solid var(--accent-red); border-radius: 16px; padding: 20px; text-align: center; width: 300px; }
-  .modal-title { font-size: 1.2rem; font-weight: 900; color: var(--accent-red); margin-bottom: 6px; }
-  .modal-text { font-size: 0.8rem; color: var(--text-main); margin-bottom: 14px; font-weight: 600; }
+  .modal-card { background: var(--panel-bg); border: 2px solid var(--accent-red); border-radius: 16px; padding: 16px; text-align: center; width: 300px; max-height: 90vh; display: flex; flex-direction: column; justify-content: space-between; }
+  .modal-title { font-size: 1.1rem; font-weight: 900; color: var(--accent-red); margin-bottom: 6px; }
+  .modal-text { font-size: 0.8rem; color: var(--text-main); margin-bottom: 12px; font-weight: 600; line-height: 1.3; }
 </style>
 </head>
 <body>
@@ -141,7 +142,314 @@
   <button class="btn-primary" id="btn-match" onclick="startPvPMatch()" disabled>⚔️ LOCK FLEET & FIND MATCH</button>
 </div>
 
-<div class="modal-overlay show" id="modal">
+<!-- Modal hidden by default -->
+<div class="modal-overlay" id="modal">
   <div class="modal-card">
     <div class="modal-title" id="modal-title">⚠️ FLEET COMMAND</div>
-    <div class="modal-text" id="modal-desc">Tap Auto-Place for instant deployment, or select a
+    <div class="modal-text" id="modal-desc"></div>
+    <button class="btn-primary" onclick="closeModal()">DISMISS</button>
+  </div>
+</div>
+
+<script>
+  const SERVER_URL = 'http://localhost:3000'; 
+  let socket = null;
+  let isMyTurn = false;
+  let inBattle = false;
+  let selectedAbility = 'normal';
+  let roomId = 'test_room_1';
+
+  let energy = 3;
+  let currentTab = 'fleet'; 
+  
+  const FLEET_TYPES = [
+    { id: 'carrier', name: 'Carrier', size: 5 },
+    { id: 'battleship', name: 'Battleship', size: 4 },
+    { id: 'cruiser', name: 'Cruiser', size: 3 },
+    { id: 'submarine', name: 'Submarine', size: 3 },
+    { id: 'destroyer', name: 'Destroyer', size: 2 }
+  ];
+
+  let selectedDockShip = null;
+  let currentOrientation = 'H';
+  let placedShips = [];
+  let playerBoard = Array(100).fill(0);
+
+  let myShots = Array(100).fill(null); 
+  let enemyShotsOnMe = Array(100).fill(null);
+
+  let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0 };
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  
+  function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'hit') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'miss') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+    }
+  }
+
+  function renderDock() {
+    const dockEl = document.getElementById('dock-ships');
+    dockEl.innerHTML = '';
+
+    FLEET_TYPES.forEach(ship => {
+      const isPlaced = placedShips.some(s => s.id === ship.id);
+      const isSelected = selectedDockShip === ship.id;
+
+      const btn = document.createElement('button');
+      btn.className = `dock-ship-btn ${isPlaced ? 'placed' : ''} ${isSelected ? 'selected' : ''}`;
+      btn.innerHTML = `<span>${ship.name}</span> <span>(${ship.size})</span>`;
+      btn.onclick = () => {
+        if (!isPlaced) {
+          selectedDockShip = ship.id;
+          renderDock();
+        }
+      };
+      dockEl.appendChild(btn);
+    });
+
+    const allPlaced = placedShips.length === FLEET_TYPES.length;
+    document.getElementById('btn-match').disabled = !allPlaced;
+    if (allPlaced && !inBattle) {
+      updateStatus('FLEET READY! CLICK LOCK FLEET.');
+    }
+  }
+
+  function toggleOrientation() {
+    currentOrientation = currentOrientation === 'H' ? 'V' : 'H';
+    document.getElementById('orient-label').innerText = currentOrientation === 'H' ? 'HORIZ' : 'VERT';
+  }
+
+  function placeShipAt(startIdx) {
+    if (!selectedDockShip) return;
+    const shipObj = FLEET_TYPES.find(s => s.id === selectedDockShip);
+    const row = Math.floor(startIdx / 10);
+    const col = startIdx % 10;
+    
+    let targetIndices = [];
+    for (let i = 0; i < shipObj.size; i++) {
+      let r = currentOrientation === 'H' ? row : row + i;
+      let c = currentOrientation === 'H' ? col + i : col;
+      if (r > 9 || c > 9) return;
+      targetIndices.push(r * 10 + c);
+    }
+
+    if (targetIndices.some(idx => playerBoard[idx] !== 0)) return;
+
+    targetIndices.forEach(idx => playerBoard[idx] = shipObj.id);
+    placedShips.push({ id: shipObj.id, indices: targetIndices });
+
+    selectedDockShip = null;
+    renderDock();
+    renderGrid();
+  }
+
+  function autoDeployRandom() {
+    playerBoard.fill(0);
+    placedShips = [];
+    selectedDockShip = null;
+
+    FLEET_TYPES.forEach(ship => {
+      let placed = false;
+      while (!placed) {
+        let horiz = Math.random() < 0.5;
+        let row = Math.floor(Math.random() * (horiz ? 10 : 10 - ship.size));
+        let col = Math.floor(Math.random() * (horiz ? 10 - ship.size : 10));
+        let idx = row * 10 + col;
+        let targetIndices = [];
+
+        for (let i = 0; i < ship.size; i++) {
+          targetIndices.push(horiz ? idx + i : idx + i * 10);
+        }
+
+        if (targetIndices.every(i => playerBoard[i] === 0)) {
+          targetIndices.forEach(i => playerBoard[i] = ship.id);
+          placedShips.push({ id: ship.id, indices: targetIndices });
+          placed = true;
+        }
+      }
+    });
+
+    renderDock();
+    renderGrid();
+  }
+
+  function startPvPMatch() {
+    inBattle = true;
+    switchTab('target');
+    document.getElementById('deploy-panel').style.display = 'none';
+
+    myShots.fill(null);
+    enemyShotsOnMe.fill(null);
+    updateStatus('CONNECTING TO WAR NETWORK...');
+    
+    if (!socket) socket = io(SERVER_URL);
+
+    const numericBoard = playerBoard.map(v => v !== 0 ? 1 : 0);
+    socket.emit('join_game', { roomId: roomId, playerBoard: numericBoard });
+
+    socket.on('game_state', () => {
+      updateStatus('WAITING FOR ENEMY FLEET...');
+      document.getElementById('board-box').classList.add('locked');
+    });
+
+    socket.on('game_start', (data) => {
+      isMyTurn = data.turn === socket.id;
+      updateStatus(isMyTurn ? 'YOUR TURN! OPEN FIRE!' : 'OPPONENT IS AIMING...');
+      document.getElementById('board-box').classList.toggle('locked', !isMyTurn);
+    });
+
+    socket.on('shot_result', (data) => {
+      const isMeAttacker = data.attackerId === socket.id;
+
+      data.hits.forEach(item => {
+        if (isMeAttacker) {
+          myShots[item.idx] = item.isHit ? 'hit' : 'miss';
+        } else {
+          enemyShotsOnMe[item.idx] = item.isHit ? 'hit' : 'miss';
+        }
+      });
+
+      if (isMeAttacker) {
+        energy = data.attackerEnergy;
+        if (data.isHit) {
+          playSound('hit');
+          triggerShake();
+          updateStatus('🎯 DIRECT HIT! KEEP FIRING!');
+        } else {
+          playSound('miss');
+          updateStatus('💦 MISS! ENEMY TURN.');
+        }
+      } else {
+        if (data.isHit) {
+          playSound('hit');
+          triggerShake();
+          updateStatus('🔥 YOUR FLEET WAS HIT!');
+        } else {
+          playSound('miss');
+          updateStatus('💦 ENEMY MISSED! YOUR TURN!');
+        }
+      }
+
+      isMyTurn = data.nextTurn === socket.id;
+      document.getElementById('board-box').classList.toggle('locked', !isMyTurn);
+      updateUI();
+
+      if (data.isGameOver) {
+        if (isMeAttacker) {
+          stats.wins++;
+          showModal('🏆 VICTORY!', 'Enemy fleet completely obliterated!');
+        } else {
+          stats.losses++;
+          showModal('☠️ DEFEAT!', 'Your fleet was wiped out.');
+        }
+        localStorage.setItem('battleship_stats', JSON.stringify(stats));
+        updateStatsDisplay();
+      }
+    });
+
+    socket.on('opponent_left', () => {
+      updateStatus('ENEMY FORFEITED! YOU WIN!');
+      document.getElementById('board-box').classList.add('locked');
+    });
+  }
+
+  function handleCellClick(idx) {
+    if (!inBattle) {
+      if (selectedDockShip) placeShipAt(idx);
+      return;
+    }
+
+    if (!isMyTurn || myShots[idx] !== null) return;
+    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: 'normal' });
+  }
+
+  function triggerShake() {
+    const box = document.getElementById('board-box');
+    box.classList.add('shake');
+    setTimeout(() => box.classList.remove('shake'), 300);
+  }
+
+  function renderGrid() {
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+
+    for (let i = 0; i < 100; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      if (currentTab === 'target') {
+        if (myShots[i] === 'hit') cell.classList.add('hit');
+        else if (myShots[i] === 'miss') cell.classList.add('miss');
+        else cell.onclick = () => handleCellClick(i);
+      } else {
+        const shipId = playerBoard[i];
+        if (shipId !== 0) {
+          cell.classList.add('ship-part', `ship-${shipId}`);
+        }
+        if (!inBattle) {
+          cell.onclick = () => handleCellClick(i);
+        }
+        if (enemyShotsOnMe[i] === 'hit') cell.classList.add('hit');
+        if (enemyShotsOnMe[i] === 'miss') cell.classList.add('miss');
+      }
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function updateStatsDisplay() {
+    document.getElementById('stat-wins').innerText = stats.wins;
+    document.getElementById('stat-losses').innerText = stats.losses;
+    const rank = stats.wins >= 10 ? 'ADMIRAL' : stats.wins >= 5 ? 'CAPTAIN' : 'CADET';
+    document.getElementById('stat-rank').innerText = rank;
+  }
+
+  function updateStatus(msg) { document.getElementById('status-msg').innerText = msg; }
+  
+  function updateUI() { 
+    document.getElementById('energy-val').innerText = energy;
+    renderGrid(); 
+  }
+
+  function switchTab(tab) { 
+    currentTab = tab; 
+    document.getElementById('tab-target').classList.toggle('active', tab === 'target');
+    document.getElementById('tab-fleet').classList.toggle('active', tab === 'fleet');
+    renderGrid(); 
+  }
+
+  function showModal(title, desc) { 
+    document.getElementById('modal-title').innerText = title; 
+    document.getElementById('modal-desc').innerText = desc; 
+    document.getElementById('modal').classList.add('show'); 
+  }
+
+  function closeModal() { 
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    document.getElementById('modal').classList.remove('show'); 
+  }
+
+  updateStatsDisplay();
+  renderDock();
+  renderGrid();
+</script>
+</body>
+</html>
