@@ -8,13 +8,14 @@
 <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 <style>
   :root {
-    --bg-dark: #0a1118;
-    --panel-bg: #111e2e;
+    --bg-dark: #070d14;
+    --panel-bg: #0f1a28;
     --accent-blue: #00bcd4;
     --accent-green: #00e676;
-    --accent-red: #ff5252;
+    --accent-red: #ff3344;
     --accent-yellow: #ffd700;
-    --grid-water: #152a3a;
+    --grid-water: #112233;
+    --grid-border: #1e3a5f;
     --text-main: #e0f2fe;
     --text-muted: #64748b;
   }
@@ -22,44 +23,95 @@
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   body { background: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; overflow-x: hidden; padding-bottom: 20px; }
 
-  header { width: 100%; padding: 12px 16px; background: var(--panel-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e3a5f; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+  header { width: 100%; padding: 12px 16px; background: var(--panel-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--grid-border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
   .title { font-weight: 900; font-size: 1.05rem; color: var(--accent-red); letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
   
   .header-badges { display: flex; gap: 6px; align-items: center; }
-  .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); cursor: pointer; }
-  .badge.audio-toggle { color: var(--accent-green); border-color: var(--accent-green); }
+  .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); }
 
-  .mode-switch { margin: 10px 0 4px 0; display: flex; gap: 8px; background: #0e1a26; padding: 4px; border-radius: 12px; border: 1px solid #1e3a5f; }
+  .stats-bar { display: flex; justify-content: space-around; width: 340px; background: #0b1522; border: 1px solid var(--grid-border); padding: 6px; border-radius: 10px; margin-top: 8px; font-size: 0.75rem; font-weight: bold; }
+  .stats-val { color: var(--accent-blue); }
+
+  .mode-switch { margin: 8px 0 4px 0; display: flex; gap: 8px; background: #0b1522; padding: 4px; border-radius: 12px; border: 1px solid var(--grid-border); }
   .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
-  .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 82, 82, 0.5); }
+  .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 51, 68, 0.5); }
 
-  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.85rem; min-height: 22px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ability-bar { display: flex; gap: 6px; width: 340px; margin: 4px 0; }
+  .ability-btn { flex: 1; padding: 8px 4px; background: #15273b; border: 1px solid var(--accent-blue); border-radius: 8px; color: #fff; font-size: 0.7rem; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ability-btn.active { background: var(--accent-blue); color: #000; box-shadow: 0 0 10px rgba(0, 188, 212, 0.6); }
+  .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #334155; }
 
-  .board-container { width: 340px; height: 340px; margin: 6px 0; position: relative; background: var(--panel-bg); border-radius: 16px; padding: 10px; border: 2px solid #1e3a5f; box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: transform 0.1s; }
+  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.8rem; min-height: 22px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .board-container { width: 340px; height: 340px; margin: 4px 0; position: relative; background: var(--panel-bg); border-radius: 16px; padding: 10px; border: 2px solid var(--grid-border); box-shadow: 0 8px 24px rgba(0,0,0,0.6); transition: transform 0.1s; }
   .board-container.shake { animation: screenShake 0.3s ease-in-out; }
-  .board-container.locked { opacity: 0.75; pointer-events: none; }
+  .board-container.locked { opacity: 0.65; pointer-events: none; }
 
-  .grid { display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; width: 100%; height: 100%; }
+  .grid { display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; width: 100%; height: 100%; background: #07111c; border-radius: 8px; overflow: hidden; }
   
-  .cell { background: var(--grid-water); border-radius: 4px; position: relative; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .cell { background: var(--grid-water); border-radius: 2px; position: relative; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .cell:hover { background: #1a334e; }
   .cell:active { transform: scale(0.92); }
-  .cell.ship { background: #2c4a6f; border: 1px solid var(--accent-blue); }
-  .cell.hit { background: rgba(255, 82, 82, 0.35); border: 1px solid var(--accent-red); box-shadow: inset 0 0 8px rgba(255, 82, 82, 0.5); }
-  .cell.hit::after { content: '💥'; font-size: 1rem; animation: explodeAnim 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-  .cell.miss { background: rgba(255, 255, 255, 0.05); }
-  .cell.miss::after { content: '💧'; font-size: 0.8rem; animation: splashAnim 0.3s ease-out; }
+
+  /* Realistic Warship Top-Down Styling */
+  .cell.ship-part { background-size: cover; background-position: center; }
+  .cell.ship-carrier { background: #3b526b; border: 1px solid var(--accent-blue); }
+  .cell.ship-battleship { background: #4a627d; border: 1px solid var(--accent-blue); }
+  .cell.ship-cruiser { background: #2f455c; border: 1px solid var(--accent-blue); }
+  .cell.ship-submarine { background: #1e364e; border: 1px solid var(--accent-blue); }
+  .cell.ship-destroyer { background: #526d8b; border: 1px solid var(--accent-blue); }
+
+  /* SVG Overlays for Realistic Warships */
+  .cell.ship-part::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.85;
+  }
+  
+  .cell.ship-carrier::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M5,10 L35,10 L38,20 L35,30 L5,30 Z' fill='%23223344' stroke='%2300bcd4' stroke-width='2'/%3E%3Cline x1='10' y1='20' x2='30' y2='20' stroke='%23ffd700' stroke-width='2' stroke-dasharray='3,2'/%3E%3Cpolygon points='12,14 18,14 15,18' fill='%23aaa'/%3E%3C/svg%3E");
+  }
+  .cell.ship-battleship::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M4,12 L30,12 L38,20 L30,28 L4,28 Z' fill='%232d3e50' stroke='%2300bcd4' stroke-width='2'/%3E%3Ccircle cx='15' cy='20' r='5' fill='%23556677'/%3E%3Ccircle cx='27' cy='20' r='4' fill='%23556677'/%3E%3C/svg%3E");
+  }
+  .cell.ship-cruiser::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M6,14 L28,14 L36,20 L28,26 L6,26 Z' fill='%231f2d3d' stroke='%2300bcd4' stroke-width='1.5'/%3E%3Crect x='14' y='17' width='8' height='6' fill='%23778899'/%3E%3C/svg%3E");
+  }
+  .cell.ship-submarine::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='4' y='14' width='32' height='12' rx='6' fill='%23111f2c' stroke='%2300bcd4' stroke-width='1.5'/%3E%3Ccircle cx='20' cy='20' r='3' fill='%2300e676'/%3E%3C/svg%3E");
+  }
+  .cell.ship-destroyer::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M8,15 L26,15 L34,20 L26,25 L8,25 Z' fill='%233a4f66' stroke='%2300bcd4' stroke-width='1.5'/%3E%3C/svg%3E");
+  }
+
+  .cell.hit { background: rgba(255, 51, 68, 0.55) !important; border: 1px solid var(--accent-red) !important; box-shadow: inset 0 0 10px rgba(255, 51, 68, 0.8); }
+  .cell.hit::after { content: '💥'; font-size: 1.1rem; z-index: 2; animation: explodeAnim 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+  
+  .cell.miss { background: rgba(15, 35, 55, 0.85) !important; border: 1px solid #1e3a5f !important; }
+  .cell.miss::after { content: '💧'; font-size: 0.85rem; z-index: 2; opacity: 0.7; animation: splashAnim 0.3s ease-out; }
+
+  /* Deployment Dock & Controls */
+  .deploy-panel { width: 340px; background: var(--panel-bg); border: 1px solid var(--grid-border); border-radius: 12px; padding: 10px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+  .deploy-title { font-size: 0.75rem; font-weight: 800; color: var(--accent-yellow); text-transform: uppercase; text-align: center; }
+  .dock-ships { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .dock-ship-btn { background: #15273b; border: 1px solid var(--grid-border); border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .dock-ship-btn.selected { border-color: var(--accent-yellow); background: #233d5a; box-shadow: 0 0 8px rgba(255, 215, 0, 0.4); }
+  .dock-ship-btn.placed { opacity: 0.35; pointer-events: none; text-decoration: line-through; }
+
+  .deploy-actions { display: flex; gap: 6px; }
+  .btn-action { flex: 1; padding: 8px; background: #1a334e; border: 1px solid var(--accent-blue); border-radius: 8px; color: #fff; font-size: 0.7rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
 
   @keyframes explodeAnim { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-  @keyframes splashAnim { 0% { transform: translateY(-8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  @keyframes splashAnim { 0% { transform: translateY(-6px); opacity: 0; } 100% { transform: translateY(0); opacity: 0.7; } }
   @keyframes screenShake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } }
 
-  .actions { width: 340px; display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
-  .ability-btn { flex: 1; background: #162c46; border: 1px solid #234873; color: var(--text-main); padding: 8px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .ability-btn.active { border-color: var(--accent-yellow); background: #223f63; }
-
-  .controls { width: 340px; margin-top: 10px; display: flex; gap: 8px; }
-  .btn-primary { flex: 1; padding: 10px; background: linear-gradient(135deg, #ff5252, #b71c1c); border: none; border-radius: 12px; color: #fff; font-weight: 900; font-size: 0.85rem; text-transform: uppercase; cursor: pointer; }
-  .btn-secondary { flex: 1; padding: 10px; background: #1e3a5f; border: 1px solid var(--accent-blue); border-radius: 12px; color: var(--accent-blue); font-weight: 800; font-size: 0.85rem; text-transform: uppercase; cursor: pointer; }
+  .controls { width: 340px; margin-top: 8px; display: flex; gap: 8px; }
+  .btn-primary { flex: 1; padding: 12px; background: linear-gradient(135deg, #ff3344, #b71c1c); border: none; border-radius: 12px; color: #fff; font-weight: 900; font-size: 0.85rem; text-transform: uppercase; cursor: pointer; }
 
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.92); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
   .modal-overlay.show { opacity: 1; pointer-events: auto; }
@@ -73,170 +125,22 @@
 <header>
   <div class="title">☠️ BATTLESHIP UNRATED</div>
   <div class="header-badges">
-    <div class="badge audio-toggle" id="audio-btn" onclick="toggleAudio()">🔊 Sound</div>
     <div class="badge">⚡ <span id="energy-val">3</span></div>
   </div>
 </header>
+
+<div class="stats-bar">
+  <div>WINS: <span class="stats-val" id="stat-wins">0</span></div>
+  <div>LOSSES: <span class="stats-val" id="stat-losses">0</span></div>
+  <div>RANK: <span class="stats-val" id="stat-rank">CADET</span></div>
+</div>
 
 <div class="mode-switch">
   <button class="tab-btn active" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
   <button class="tab-btn" id="tab-fleet" onclick="switchTab('fleet')">🛡️ War Fleet</button>
 </div>
 
-<div class="status-bar" id="status-msg">SELECT GAME MODE TO BEGIN.</div>
-
-<div class="board-container" id="board-box">
-  <div class="grid" id="grid"></div>
-</div>
-
-<div class="controls">
-  <button class="btn-secondary" onclick="startPvPMatch()">⚔️ Find PvP Match</button>
-  <button class="btn-primary" onclick="resetSinglePlayer()">🤖 Solo Vs AI</button>
-</div>
-
-<!-- Welcome / Game Status Modal -->
-<div class="modal-overlay show" id="modal">
-  <div class="modal-card">
-    <div class="modal-title" id="modal-title">⚠️ BATTLE BRIEFING</div>
-    <div class="modal-text" id="modal-desc">Rules: Score a direct hit to keep your turn! Miss, and control passes to your opponent.</div>
-    <button class="btn-primary" onclick="closeModal()">LOCK & LOAD</button>
-  </div>
-</div>
-
-<script>
-  // UPDATE THIS URL to point to your hosted WebSocket server (e.g., https://your-app.onrender.com)
-  const SERVER_URL = 'http://localhost:3000'; 
-  let socket = null;
-  let isPvP = false;
-  let isMyTurn = true;
-  let roomId = 'room_' + Math.floor(Math.random() * 9000 + 1000);
-
-  let energy = 3;
-  let currentTab = 'target';
-  let playerBoard = Array(100).fill(0);
-  let enemyHits = Array(100).fill(false);
-  let myHitsOnEnemy = Array(100).fill(false);
-
-  function startPvPMatch() {
-    isPvP = true;
-    updateStatus('CONNECTING TO WAR NETWORK...');
-    socket = io(SERVER_URL);
-
-    placeRandomShips(playerBoard, [5, 4, 3, 3, 2]);
-
-    socket.emit('join_game', { roomId: roomId, playerBoard: playerBoard });
-
-    socket.on('game_state', (data) => {
-      updateStatus('WAITING FOR ENEMY PLAYER TO JOIN...');
-      document.getElementById('board-box').classList.add('locked');
-    });
-
-    socket.on('game_start', (data) => {
-      isMyTurn = data.turn === socket.id;
-      updateStatus(isMyTurn ? 'YOUR TURN! OPEN FIRE!' : 'OPPONENT IS AIMING...');
-      document.getElementById('board-box').classList.toggle('locked', !isMyTurn);
-    });
-
-    socket.on('shot_result', (data) => {
-      const isMeAttacker = data.attackerId === socket.id;
-
-      if (isMeAttacker) {
-        myHitsOnEnemy[data.idx] = true;
-        if (data.isHit) {
-          energy = data.attackerEnergy;
-          updateStatus('🎯 DIRECT HIT! KEEP FIRING!');
-        } else {
-          updateStatus('💦 SPLOOSH! MISS! ENEMY TURN.');
-        }
-      } else {
-        if (data.isHit) {
-          updateStatus('🔥 OUR WARSHIP WAS HIT! ENEMY FIRING AGAIN!');
-        } else {
-          updateStatus('💦 ENEMY MISSED! YOUR TURN TO FIRE!');
-        }
-      }
-
-      isMyTurn = data.nextTurn === socket.id;
-      document.getElementById('board-box').classList.toggle('locked', !isMyTurn);
-      updateUI();
-
-      if (data.isGameOver) {
-        showModal(isMeAttacker ? '🏆 VICTORY!' : '☠️ DEFEAT!', isMeAttacker ? 'Enemy fleet destroyed!' : 'Your fleet was completely wiped out.');
-      }
-    });
-
-    socket.on('opponent_left', () => {
-      updateStatus('ENEMY PLAYER FORFEITED! YOU WIN!');
-      document.getElementById('board-box').classList.add('locked');
-    });
-  }
-
-  function handleCellClick(idx) {
-    if (!isMyTurn) return;
-
-    if (isPvP) {
-      socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: 'normal' });
-    }
-  }
-
-  function placeRandomShips(board, ships) {
-    board.fill(0);
-    ships.forEach(length => {
-      let placed = false;
-      while (!placed) {
-        let horiz = Math.random() < 0.5;
-        let row = Math.floor(Math.random() * (horiz ? 10 : 10 - length));
-        let col = Math.floor(Math.random() * (horiz ? 10 - length : 10));
-        let idx = row * 10 + col;
-        let spaceOk = true;
-
-        for (let i = 0; i < length; i++) {
-          let checkIdx = horiz ? idx + i : idx + i * 10;
-          if (board[checkIdx] !== 0) { spaceOk = false; break; }
-        }
-
-        if (spaceOk) {
-          for (let i = 0; i < length; i++) {
-            let fillIdx = horiz ? idx + i : idx + i * 10;
-            board[fillIdx] = 1;
-          }
-          placed = true;
-        }
-      }
-    });
-  }
-
-  function renderGrid() {
-    const gridEl = document.getElementById('grid');
-    gridEl.innerHTML = '';
-
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-
-      if (currentTab === 'target') {
-        if (myHitsOnEnemy[i]) {
-          cell.classList.add('hit');
-        } else {
-          cell.onclick = () => handleCellClick(i);
-        }
-      } else {
-        if (playerBoard[i] === 1) cell.classList.add('ship');
-      }
-
-      gridEl.appendChild(cell);
-    }
-  }
-
-  function updateStatus(msg) { document.getElementById('status-msg').innerText = msg; }
-  function updateUI() { document.getElementById('energy-val').innerText = energy; renderGrid(); }
-  function switchTab(tab) { currentTab = tab; renderGrid(); }
-  function showModal(title, desc) { document.getElementById('modal-title').innerText = title; document.getElementById('modal-desc').innerText = desc; document.getElementById('modal').classList.add('show'); }
-  function closeModal() { document.getElementById('modal').classList.remove('show'); }
-  function resetSinglePlayer() { isPvP = false; placeRandomShips(playerBoard, [5, 4, 3, 3, 2]); updateStatus('SOLO MATCH STARTED. OPEN FIRE!'); updateUI(); }
-
-  placeRandomShips(playerBoard, [5, 4, 3, 3, 2]);
-  renderGrid();
-</script>
-</body>
-</html>
+<!-- Tactical Ability Bar -->
+<div class="ability-bar">
+  <button class="ability-btn active" id="abi-normal" onclick="selectAbility('normal')">
+    <span>🎯 STRIKE</span>
