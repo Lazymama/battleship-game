@@ -121,6 +121,20 @@
     window.Telegram.WebApp.expand();
   }
 
+  // Clean, dedicated one-shot sound effects
+  const hitSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2795/2795-preview.mp3');
+  const missSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2655/2655-preview.mp3');
+
+  function playSound(type) {
+    if (type === 'hit') {
+      hitSound.currentTime = 0;
+      hitSound.play().catch(() => {});
+    } else if (type === 'miss') {
+      missSound.currentTime = 0;
+      missSound.play().catch(() => {});
+    }
+  }
+
   let currentTab = 'target';
   let activeAbility = 'normal';
   let energy = 3;
@@ -218,13 +232,15 @@
       playerHits++;
       energy = Math.min(10, energy + 1);
       
-      // Trigger screen shake on hit
+      playSound('hit');
+      
       const boardBox = document.getElementById('board-box');
       boardBox.classList.add('shake');
       setTimeout(() => boardBox.classList.remove('shake'), 300);
 
       updateStatus('🎯 DIRECT HIT! +1 Energy');
     } else {
+      playSound('miss');
       updateStatus('💦 Sploosh! Missed.');
     }
   }
