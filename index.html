@@ -1,333 +1,385 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Telegram Battleship Unrated PvP</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-<style>
-  :root {
-    --bg-dark: #070d14;
-    --panel-bg: #0f1a28;
-    --accent-blue: #00bcd4;
-    --accent-green: #00e676;
-    --accent-red: #ff3344;
-    --accent-yellow: #ffd700;
-    --grid-water: #112233;
-    --grid-border: #1e3a5f;
-    --text-main: #e0f2fe;
-    --text-muted: #64748b;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battleship Unrated</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #22c55e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 12px; }
+    
+    .app-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px; }
+    
+    /* Header / Stats */
+    .header-card { background: var(--card-bg); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid #334155; }
+    .title-row { display: flex; justify-content: space-between; align-items: center; }
+    h1 { font-size: 1.1rem; color: var(--danger); letter-spacing: 1px; }
+    .currency-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; color: #fbbf24; }
+    
+    .stats-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); }
+    
+    /* Mode Switch / Tabs */
+    .mode-switch { display: flex; gap: 6px; }
+    .tab-btn { flex: 1; padding: 10px; background: var(--card-bg); border: 1px solid #334155; color: var(--text-muted); border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.85rem; }
+    .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body { background: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; overflow-x: hidden; padding-bottom: 20px; }
+    /* Status & Controls */
+    .status-banner { background: var(--card-bg); padding: 8px; text-align: center; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: var(--accent); }
+    .action-row { display: flex; gap: 6px; }
+    .action-btn { flex: 1; padding: 8px; background: #334155; color: white; border: none; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+    .action-btn:hover { background: #475569; }
 
-  header { width: 100%; padding: 10px 16px; background: var(--panel-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--grid-border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-  .title { font-weight: 900; font-size: 0.95rem; color: var(--accent-red); letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
-  
-  .header-badges { display: flex; gap: 6px; align-items: center; }
-  .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); }
-  .badge-btn { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-blue); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
+    /* Grid Viewport */
+    .grid-viewport { background: #020617; border: 2px solid #334155; border-radius: 12px; height: 320px; display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; padding: 4px; }
+    .grid-cell { background: #1e293b; border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
+    .grid-cell.ship-placed { background: var(--accent); }
 
-  .stats-bar { display: flex; justify-content: space-around; width: 340px; background: #0b1522; border: 1px solid var(--grid-border); padding: 5px; border-radius: 8px; margin-top: 6px; font-size: 0.75rem; font-weight: bold; }
-  .stats-val { color: var(--accent-blue); }
+    /* Deployment Dock */
+    .dock-container { background: var(--card-bg); padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .dock-title { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); text-align: center; }
+    .dock-ships { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+    .dock-ship-btn { padding: 6px 10px; background: #334155; color: white; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+    .dock-ship-btn.placed { opacity: 0.4; text-decoration: line-through; }
+    .dock-ship-btn.selected { background: var(--accent); color: #0f172a; font-weight: bold; }
 
-  .mode-switch { margin: 6px 0 4px 0; display: flex; gap: 8px; background: #0b1522; padding: 4px; border-radius: 10px; border: 1px solid var(--grid-border); width: 340px; }
-  .tab-btn { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
-  .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 51, 68, 0.5); }
-
-  .ability-bar { display: none; gap: 6px; width: 340px; margin: 4px 0; }
-  .ability-bar.active { display: flex; }
-  .ability-btn { flex: 1; padding: 6px 4px; background: #15273b; border: 1px solid var(--accent-blue); border-radius: 6px; color: #fff; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .ability-btn.active { background: var(--accent-blue); color: #000; box-shadow: 0 0 8px rgba(0, 188, 212, 0.6); }
-  .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #334155; }
-
-  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.75rem; min-height: 22px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 10px; }
-
-  .board-container { width: 340px; height: 340px; margin: 2px 0; position: relative; background: var(--panel-bg); border-radius: 14px; padding: 8px; border: 2px solid var(--grid-border); box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
-  .board-container.shake { animation: screenShake 0.3s ease-in-out; }
-  .board-container.locked { opacity: 0.65; pointer-events: none; }
-
-  .grid { display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; width: 100%; height: 100%; background: #07111c; border-radius: 6px; overflow: hidden; }
-  
-  .cell { background: var(--grid-water); border-radius: 2px; position: relative; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-  .cell:hover { background: #1a334e; }
-  .cell:active { transform: scale(0.92); }
-
-  .cell.ship-part { background-size: cover; background-position: center; }
-  .cell.ship-carrier { background: #3b526b; border: 1px solid var(--accent-blue); }
-  .cell.ship-battleship { background: #4a627d; border: 1px solid var(--accent-blue); }
-  .cell.ship-cruiser { background: #2f455c; border: 1px solid var(--accent-blue); }
-  .cell.ship-submarine { background: #1e364e; border: 1px solid var(--accent-blue); }
-  .cell.ship-destroyer { background: #526d8b; border: 1px solid var(--accent-blue); }
-
-  .cell.ship-part::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    opacity: 0.85;
-  }
-  
-  .cell.ship-carrier::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M5,10 L35,10 L38,20 L35,30 L5,30 Z' fill='%23223344' stroke='%2300bcd4' stroke-width='2'/%3E%3C/svg%3E"); }
-  .cell.ship-battleship::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M4,12 L30,12 L38,20 L30,28 L4,28 Z' fill='%232d3e50' stroke='%2300bcd4' stroke-width='2'/%3E%3C/svg%3E"); }
-  .cell.ship-cruiser::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M6,14 L28,14 L36,20 L28,26 L6,26 Z' fill='%231f2d3d' stroke='%2300bcd4' stroke-width='1.5'/%3E%3C/svg%3E"); }
-  .cell.ship-submarine::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='4' y='14' width='32' height='12' rx='6' fill='%23111f2c' stroke='%2300bcd4' stroke-width='1.5'/%3E%3C/svg%3E"); }
-  .cell.ship-destroyer::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M8,15 L26,15 L34,20 L26,25 L8,25 Z' fill='%233a4f66' stroke='%2300bcd4' stroke-width='1.5'/%3E%3C/svg%3E"); }
-
-  .cell.hit { background: rgba(255, 51, 68, 0.55) !important; border: 1px solid var(--accent-red) !important; box-shadow: inset 0 0 10px rgba(255, 51, 68, 0.8); }
-  .cell.hit::after { content: '💥'; font-size: 1.1rem; z-index: 2; animation: explodeAnim 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-  
-  .cell.miss { background: rgba(15, 35, 55, 0.85) !important; border: 1px solid #1e3a5f !important; }
-  .cell.miss::after { content: '💧'; font-size: 0.85rem; z-index: 2; opacity: 0.7; animation: splashAnim 0.3s ease-out; }
-
-  .deploy-panel { width: 340px; background: var(--panel-bg); border: 1px solid var(--grid-border); border-radius: 10px; padding: 8px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
-  .deploy-title { font-size: 0.7rem; font-weight: 800; color: var(--accent-yellow); text-transform: uppercase; text-align: center; }
-  .dock-ships { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px; }
-  .dock-ship-btn { background: #15273b; border: 1px solid var(--accent-blue); border-radius: 5px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-  .dock-ship-btn.selected { border-color: var(--accent-yellow); background: #233d5a; box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
-  .dock-ship-btn.placed { opacity: 0.35; pointer-events: none; text-decoration: line-through; border-color: #334155; }
-
-  .deploy-actions { display: flex; gap: 6px; }
-  .btn-action { flex: 1; padding: 6px; background: #1a334e; border: 1px solid var(--accent-blue); border-radius: 6px; color: #fff; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
-
-  .controls { width: 340px; margin-top: 6px; display: flex; gap: 8px; }
-  .btn-primary { flex: 1; padding: 10px; background: linear-gradient(135deg, #ff3344, #b71c1c); border: none; border-radius: 10px; color: #fff; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(50%); }
-  .btn-surrender { background: #261a22; border: 1px solid var(--accent-red); color: var(--accent-red); }
-
-  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.92); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-  .modal-overlay.show { opacity: 1; pointer-events: auto; }
-  .modal-card { background: var(--panel-bg); border: 2px solid var(--accent-red); border-radius: 16px; padding: 16px; text-align: center; width: 300px; display: flex; flex-direction: column; justify-content: space-between; }
-  .modal-title { font-size: 1.1rem; font-weight: 900; color: var(--accent-red); margin-bottom: 6px; }
-  .modal-text { font-size: 0.8rem; color: var(--text-main); margin-bottom: 12px; font-weight: 600; line-height: 1.3; }
-</style>
+    /* Shop Modal Overlay */
+    .shop-modal { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 100; display: none; flex-direction: column; padding: 20px; align-items: center; justify-content: center; gap: 16px; }
+    .shop-modal.active { display: flex; }
+    .shop-card { background: var(--card-bg); border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 340px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .shop-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 10px; border-radius: 8px; }
+    .buy-btn { background: var(--success); color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    .close-shop-btn { background: var(--danger); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
+  </style>
 </head>
 <body>
 
-<header>
-  <div class="title">☠️ BATTLESHIP UNRATED</div>
-  <div class="header-badges">
-    <button class="badge-btn" id="sound-btn" onclick="toggleSound()">🔊 SOUND</button>
-    <div class="badge">🪙 <span id="stat-coins">0</span> Shipcoins</div>
-  </div>
-</header>
-
-<div class="stats-bar">
-  <div>WINS: <span class="stats-val" id="stat-wins">0</span></div>
-  <div>LOSSES: <span class="stats-val" id="stat-losses">0</span></div>
-  <div>RANK: <span class="stats-val" id="stat-rank">DEGENERATE</span></div>
-</div>
-
-<div class="mode-switch">
-  <button class="tab-btn active" id="tab-fleet" onclick="switchTab('fleet')">🛡️ War Fleet</button>
-  <button class="tab-btn" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
-  <button class="tab-btn" id="tab-shop" onclick="switchTab('shop')">🛒 Shop</button>
-</div>
-
-<div class="ability-bar" id="ability-bar">
-  <button class="ability-btn active" id="abi-normal" onclick="selectAbility('normal')">
-    <span>🎯 STRIKE</span><span>(0⚡)</span>
-  </button>
-  <button class="ability-btn" id="abi-recon" onclick="selectAbility('recon')">
-    <span>📡 SONAR</span><span>(2⚡)</span>
-  </button>
-  <button class="ability-btn" id="abi-hellfire" onclick="selectAbility('hellfire')">
-    <span>🔥 HELLFIRE</span><span>(4⚡)</span>
-  </button>
-</div>
-
-<div class="status-bar" id="status-msg">ARRANGE YOUR FLEET, COMMANDER.</div>
-
-<div class="board-container" id="board-box">
-  <div class="grid" id="grid"></div>
-</div>
-
-<div class="deploy-panel" id="deploy-panel">
-  <div class="deploy-title">⚓ FLEET DEPLOYMENT DOCK</div>
-  <div class="dock-ships" id="dock-ships"></div>
-  <div class="deploy-actions">
-    <button class="btn-action" onclick="toggleOrientation()">🔄 ROTATE (<span id="orient-label">HORIZ</span>)</button>
-    <button class="btn-action" onclick="resetDeployment()">🗑️ RESET</button>
-    <button class="btn-action" onclick="autoDeployRandom()">🎲 AUTO</button>
-  </div>
-</div>
-
-<div class="controls">
-  <button class="btn-primary" id="btn-match" onclick="startPvPMatch()" disabled>⚔️ LOCK FLEET & HUNT</button>
-  <button class="btn-primary btn-surrender" id="btn-surrender" onclick="surrenderMatch()" style="display:none;">🏳️ SURRENDER</button>
-</div>
-
-<div class="modal-overlay" id="shop-modal">
-  <div class="modal-card">
-    <div class="modal-title">🛒 BLACK MARKET SHOP</div>
-    <div class="modal-text" id="shop-balance-display">BALANCE: 0 SHIPCOINS</div>
-    
-    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
-      <button class="btn-action" style="padding: 10px; background: #1a334e; text-align: left;" onclick="buyItem('extra_energy', 150)">
-        ⚡ <strong>Extra Battery (+1⚡)</strong><br>
-        <small>Start with 4 Energy instead of 3. Cost: 150 🪙</small>
-      </button>
+  <div class="app-container">
+    <!-- Header -->
+    <div class="header-card">
+      <div class="title-row">
+        <h1>☠️ BATTLESHIP UNRATED</h1>
+        <div class="currency-badge" id="shipcoin-count">0 Shipcoins</div>
+      </div>
+      <div class="stats-row">
+        <span>WINS: <strong id="win-count">0</strong></span>
+        <span>LOSSES: <strong id="loss-count">0</strong></span>
+        <span>RANK: <strong id="rank-display">DEGENERATE</strong></span>
+      </div>
     </div>
 
-    <button class="btn-primary" onclick="closeShop()">CLOSE SHOP</button>
+    <!-- Navigation Tabs -->
+    <div class="mode-switch">
+      <button class="tab-btn active" id="tab-fleet" onclick="switchTab('fleet')">🛡️ War Fleet</button>
+      <button class="tab-btn" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
+      <button class="tab-btn" id="tab-shop" onclick="switchTab('shop')">🛒 Shop</button>
+    </div>
+
+    <!-- Status Banner -->
+    <div class="status-banner" id="status-display">ARRANGE YOUR FLEET, COMMANDER.</div>
+
+    <!-- Grid Viewport -->
+    <div class="grid-viewport" id="grid-container"></div>
+
+    <!-- Action Buttons -->
+    <div class="action-row">
+      <button class="action-btn" id="orientation-btn" onclick="toggleOrientation()">ROTATE (HORIZONTAL)</button>
+      <button class="action-btn" onclick="autoDeployRandom()">AUTO DEPLOY</button>
+      <button class="action-btn" onclick="resetDeployment()">RESET</button>
+    </div>
+
+    <!-- Fleet Deployment Dock -->
+    <div class="dock-container">
+      <div class="dock-title">⚓ Fleet Deployment Dock</div>
+      <div class="dock-ships" id="dock-ships"></div>
+    </div>
   </div>
-</div>
 
+  <!-- Shop Modal Overlay -->
+  <div class="shop-modal" id="shop-modal">
+    <div class="shop-card">
+      <h2 style="font-size: 1rem; color: #fbbf24;">🛒 BLACK MARKET SHOP</h2>
+      <div id="shop-balance-display" style="font-size: 0.85rem; color: var(--text-muted);">BALANCE: 0 SHIPCOINS</div>
+      
+      <div class="shop-item">
+        <div>
+          <div style="font-size: 0.85rem; font-weight: bold;">Hellfire Strike</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Deals heavy area damage</div>
+        </div>
+        <button class="buy-btn" onclick="buyItem('hellfire', 150)">150 🪙</button>
+      </div>
 
-<script>
-  const SERVER_URL = 'http://localhost:3000'; 
-  let socket = null;
-  let isMyTurn = false;
-  let inBattle = false;
-  let selectedAbility = 'normal';
-  let roomId = 'test_room_1';
+      <div class="shop-item">
+        <div>
+          <div style="font-size: 0.85rem; font-weight: bold;">Sonar Ping</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Reveals random enemy sector</div>
+        </div>
+        <button class="buy-btn" onclick="buyItem('sonar', 100)">100 🪙</button>
+      </div>
 
-  let energy = 3;
-  let currentTab = 'fleet'; 
-  let soundEnabled = true;
-  
-  const FLEET_TYPES = [
-    { id: 'carrier', name: 'Carrier', size: 5 },
-    { id: 'battleship', name: 'Battleship', size: 4 },
-    { id: 'cruiser', name: 'Cruiser', size: 3 },
-    { id: 'submarine', name: 'Submarine', size: 3 },
-    { id: 'destroyer', name: 'Destroyer', size: 2 }
-  ];
+      <button class="close-shop-btn" onclick="closeShop()">CLOSE SHOP</button>
+    </div>
+  </div>
 
-  let selectedDockShip = null;
-  let currentOrientation = 'H';
-  let placedShips = [];
-  let playerBoard = Array(100).fill(0);
+  <script>
+    // 1. GLOBAL STATE & PERSISTENCE
+    let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { 
+      shipcoins: 500, // Starts with test coins to try items
+      wins: 0, 
+      losses: 0, 
+      rank: 'DEGENERATE' 
+    };
+    
+    let currentTab = 'fleet';
+    let currentOrientation = 'H';
+    let selectedDockShip = null;
+    let placedShips = [];
+    let playerBoard = Array(100).fill(0);
 
-  let myShots = Array(100).fill(null); 
-  let enemyShotsOnMe = Array(100).fill(null);
+    const FLEET_TYPES = [
+      { id: 'carrier', name: 'Carrier', size: 5 },
+      { id: 'battleship', name: 'Battleship', size: 4 },
+      { id: 'cruiser', name: 'Cruiser', size: 3 },
+      { id: 'submarine', name: 'Submarine', size: 3 },
+      { id: 'destroyer', name: 'Destroyer', size: 2 }
+    ];
 
-  let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0, shipcoins: 0 };
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  // 1. TELEGRAM WEBAPP & HAPTICS
-  if (window.Telegram && window.Telegram.WebApp) {
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
-  }
-
-  function triggerHaptic(style) {
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
+    // 2. TELEGRAM WEBAPP & HAPTICS
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
     }
-  }
 
-  // 2. UI DISPLAY UPDATES
-  window.updateStatsDisplay = function() {
-    const coinEl = document.getElementById('shipcoin-count') || document.querySelector('.shipcoins');
-    const winEl = document.getElementById('win-count');
-    const lossEl = document.getElementById('loss-count');
-    const rankEl = document.getElementById('rank-display');
-
-    if (coinEl) coinEl.innerText = `${stats.shipcoins} Shipcoins`;
-    if (winEl) winEl.innerText = stats.wins;
-    if (lossEl) lossEl.innerText = stats.losses;
-    if (rankEl) rankEl.innerText = stats.rank;
-  };
-
-  window.updateStatus = function(message) {
-    const statusEl = document.getElementById('status-display') || document.getElementById('dock-status');
-    if (statusEl) {
-      statusEl.innerText = message;
+    function triggerHaptic(style) {
+      try {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          if (window.Telegram.WebApp.isVersionAtLeast && window.Telegram.WebApp.isVersionAtLeast('6.1')) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
+          }
+        }
+      } catch (e) {}
     }
-  };
 
-  // 3. GRID RENDERER
-  window.renderGrid = function() {
-    const gridEl = document.getElementById('grid-container') || document.querySelector('.grid') || document.getElementById('fleet-grid');
-    if (!gridEl) return;
+    // 3. UI DISPLAY UPDATES
+    window.updateStatsDisplay = function() {
+      const coinEl = document.getElementById('shipcoin-count');
+      const winEl = document.getElementById('win-count');
+      const lossEl = document.getElementById('loss-count');
+      const rankEl = document.getElementById('rank-display');
 
-    gridEl.innerHTML = ''; // Clear previous grid cells
+      if (coinEl) coinEl.innerText = `${stats.shipcoins} Shipcoins`;
+      if (winEl) winEl.innerText = stats.wins;
+      if (lossEl) lossEl.innerText = stats.losses;
+      if (rankEl) rankEl.innerText = stats.rank;
+    };
 
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'grid-cell';
-      cell.dataset.index = i;
+    window.updateStatus = function(message) {
+      const statusEl = document.getElementById('status-display');
+      if (statusEl) statusEl.innerText = message;
+    };
 
-      // Render player board ships/hits if present
-      if (typeof playerBoard !== 'undefined' && playerBoard[i]) {
-        cell.classList.add('ship-placed');
+    // 4. GRID RENDERER
+    window.renderGrid = function() {
+      const gridEl = document.getElementById('grid-container');
+      if (!gridEl) return;
+
+      gridEl.innerHTML = '';
+
+      for (let i = 0; i < 100; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'grid-cell';
+        cell.dataset.index = i;
+
+        if (playerBoard && playerBoard[i]) {
+          cell.classList.add('ship-placed');
+        }
+
+        cell.addEventListener('click', () => {
+          if (currentTab === 'fleet' && selectedDockShip) {
+            tryPlaceSelectedShip(i);
+          }
+        });
+
+        gridEl.appendChild(cell);
+      }
+    };
+
+    // 5. NAVIGATION & TAB SWITCHER
+    window.switchTab = function(tab) {
+      if (tab === 'shop') {
+        openShop();
+        return;
       }
 
-      gridEl.appendChild(cell);
-    }
-  };
+      currentTab = tab;
 
-  // 4. NAVIGATION & TAB SWITCHER
-  window.switchTab = function(tab) {
-    if (tab === 'shop') {
-      openShop();
-      return;
-    }
+      const fleetBtn = document.getElementById('tab-fleet');
+      const targetBtn = document.getElementById('tab-target');
+      const shopBtn = document.getElementById('tab-shop');
 
-    currentTab = tab;
+      if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
+      if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
+      if (shopBtn) shopBtn.classList.toggle('active', tab === 'shop');
 
-    const fleetBtn = document.getElementById('tab-fleet');
-    const targetBtn = document.getElementById('tab-target');
-    const shopBtn = document.getElementById('tab-shop');
+      renderGrid();
+    };
 
-    if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
-    if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
-    if (shopBtn) shopBtn.classList.toggle('active', tab === 'shop');
+    // 6. SHOP MODAL CONTROLLERS
+    window.openShop = function() {
+      const modal = document.getElementById('shop-modal');
+      const balanceEl = document.getElementById('shop-balance-display');
 
-    renderGrid();
-  };
+      if (balanceEl) {
+        balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
+      }
 
-  // 5. SHOP MODAL CONTROLLERS
-  window.openShop = function() {
-    const modal = document.getElementById('shop-modal');
-    const balanceEl = document.getElementById('shop-balance-display');
+      if (modal) {
+        modal.classList.add('active');
+      }
 
-    if (balanceEl) {
-      balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
-    }
+      triggerHaptic('medium');
+    };
 
-    if (modal) {
-      modal.classList.add('active');
-      modal.style.display = 'flex';
-    }
-
-    triggerHaptic('medium');
-  };
-
-  window.closeShop = function() {
-    const modal = document.getElementById('shop-modal');
-    if (modal) {
-      modal.classList.remove('active');
-      modal.style.display = 'none';
-    }
-    triggerHaptic('light');
-  };
-
-  window.buyItem = function(itemCode, cost) {
-    if (stats.shipcoins >= cost) {
-      stats.shipcoins -= cost;
-      localStorage.setItem('battleship_stats', JSON.stringify(stats));
-      updateStatsDisplay();
-      alert("Purchase successful!");
-      closeShop();
-      triggerHaptic('heavy');
-    } else {
-      alert("Not enough Shipcoins!");
+    window.closeShop = function() {
+      const modal = document.getElementById('shop-modal');
+      if (modal) {
+        modal.classList.remove('active');
+      }
       triggerHaptic('light');
-    }
-  };
+    };
 
-  // 6. INITIAL LOAD
-  document.addEventListener('DOMContentLoaded', () => {
-    updateStatsDisplay();
-    renderGrid();
-  });
-</script>
+    window.buyItem = function(itemCode, cost) {
+      if (stats.shipcoins >= cost) {
+        stats.shipcoins -= cost;
+        localStorage.setItem('battleship_stats', JSON.stringify(stats));
+        updateStatsDisplay();
+        alert("Purchase successful!");
+        closeShop();
+        triggerHaptic('heavy');
+      } else {
+        alert("Not enough Shipcoins!");
+        triggerHaptic('light');
+      }
+    };
+
+    // 7. DEPLOYMENT & GAMEPLAY HELPERS
+    window.toggleOrientation = function() {
+      currentOrientation = (currentOrientation === 'H') ? 'V' : 'H';
+      const orientationBtn = document.getElementById('orientation-btn');
+      if (orientationBtn) {
+        orientationBtn.innerText = `ROTATE (${currentOrientation === 'H' ? 'HORIZONTAL' : 'VERTICAL'})`;
+      }
+      triggerHaptic('light');
+    };
+
+    window.resetDeployment = function() {
+      placedShips = [];
+      playerBoard = Array(100).fill(0);
+      renderDock();
+      renderGrid();
+      updateStatus("Fleet reset. Arrange your ships, Commander.");
+      triggerHaptic('medium');
+    };
+
+    window.autoDeployRandom = function() {
+      resetDeployment();
+      FLEET_TYPES.forEach(ship => {
+        let placed = false;
+        let attempts = 0;
+        while (!placed && attempts < 100) {
+          attempts++;
+          const orientation = Math.random() < 0.5 ? 'H' : 'V';
+          const startIdx = Math.floor(Math.random() * 100);
+          if (canPlaceShip(startIdx, ship.size, orientation)) {
+            placeShipOnBoard(startIdx, ship.size, orientation, ship.id);
+            placed = true;
+          }
+        }
+      });
+      renderGrid();
+      renderDock();
+      updateStatus("Fleet auto-deployed randomly!");
+      triggerHaptic('heavy');
+    };
+
+    function canPlaceShip(index, size, orientation) {
+      const row = Math.floor(index / 10);
+      const col = index % 10;
+      if (orientation === 'H') {
+        if (col + size > 10) return false;
+        for (let i = 0; i < size; i++) {
+          if (playerBoard[index + i] !== 0) return false;
+        }
+      } else {
+        if (row + size > 10) return false;
+        for (let i = 0; i < size; i++) {
+          if (playerBoard[index + (i * 10)] !== 0) return false;
+        }
+      }
+      return true;
+    }
+
+    function placeShipOnBoard(index, size, orientation, shipId) {
+      for (let i = 0; i < size; i++) {
+        const idx = orientation === 'H' ? index + i : index + (i * 10);
+        playerBoard[idx] = shipId;
+      }
+      placedShips.push({ id: shipId, index, size, orientation });
+    }
+
+    function tryPlaceSelectedShip(index) {
+      const ship = FLEET_TYPES.find(s => s.id === selectedDockShip);
+      if (!ship) return;
+      if (canPlaceShip(index, ship.size, currentOrientation)) {
+        placeShipOnBoard(index, ship.size, currentOrientation, ship.id);
+        selectedDockShip = null;
+        renderGrid();
+        renderDock();
+        updateStatus(`${ship.name} deployed successfully.`);
+        triggerHaptic('medium');
+      } else {
+        updateStatus("Invalid placement position.");
+        triggerHaptic('light');
+      }
+    }
+
+    window.renderDock = function() {
+      const dockEl = document.getElementById('dock-ships');
+      if (!dockEl) return;
+      dockEl.innerHTML = '';
+      
+      FLEET_TYPES.forEach(ship => {
+        const isPlaced = placedShips.some(p => p.id === ship.id);
+        const shipBtn = document.createElement('button');
+        shipBtn.className = `dock-ship-btn ${isPlaced ? 'placed' : ''} ${selectedDockShip === ship.id ? 'selected' : ''}`;
+        shipBtn.innerText = `${ship.name} (${ship.size})`;
+        shipBtn.disabled = isPlaced;
+        shipBtn.onclick = () => {
+          selectedDockShip = ship.id;
+          renderDock();
+          updateStatus(`Placing ${ship.name}. Select a grid cell.`);
+          triggerHaptic('light');
+        };
+        dockEl.appendChild(shipBtn);
+      });
+    };
+
+    // 8. INITIAL LOAD
+    document.addEventListener('DOMContentLoaded', () => {
+      updateStatsDisplay();
+      renderDock();
+      renderGrid();
+    });
+  </script>
 </body>
 </html>
