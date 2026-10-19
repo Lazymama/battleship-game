@@ -16,6 +16,7 @@
       --danger: #ef4444;
       --success: #22c55e;
       --warning: #fbbf24;
+      --purple: #8b5cf6;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: var(--bg-color); color: var(--text-main); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 12px; }
@@ -39,13 +40,20 @@
     .tab-btn { flex: 1; padding: 10px; background: var(--card-bg); border: 1px solid #334155; color: var(--text-muted); border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.85rem; }
     .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
-    /* Status & Controls */
+    /* Status Banner */
     .status-banner { background: var(--card-bg); padding: 8px; text-align: center; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: var(--accent); }
     
+    /* Purchased Power-Ups / Ability Bar */
+    .ability-bar { display: flex; gap: 6px; background: var(--card-bg); padding: 6px; border-radius: 8px; border: 1px solid #334155; }
+    .ability-btn { flex: 1; padding: 6px; background: #0f172a; border: 1px solid #334155; color: white; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .ability-btn.active { border-color: var(--warning); background: #334155; color: var(--warning); }
+    .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Action Controls */
     .action-row { display: flex; gap: 6px; }
     .action-btn { flex: 1; padding: 8px; background: #334155; color: white; border: none; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
     .action-btn:hover { background: #475569; }
-    .action-btn.pvp { background: #8b5cf6; }
+    .action-btn.pvp { background: var(--purple); }
     .action-btn.pvp:hover { background: #7c3aed; }
 
     /* Grid Viewport */
@@ -54,6 +62,7 @@
     .grid-cell.ship-placed { background: var(--accent); }
     .grid-cell.hit { background: var(--danger); }
     .grid-cell.miss { background: #475569; }
+    .grid-cell.revealed { background: #eab308; }
 
     /* Deployment Dock */
     .dock-container { background: var(--card-bg); padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -101,6 +110,13 @@
     <!-- Status Banner -->
     <div class="status-banner" id="status-display">PLACE YOUR SHIPS OR GET WRECKED.</div>
 
+    <!-- Purchased Power-Ups Bar -->
+    <div class="ability-bar">
+      <button class="ability-btn" id="ability-normal" onclick="selectAbility('normal')">💥 Standard Shot</button>
+      <button class="ability-btn" id="ability-hellfire" onclick="selectAbility('hellfire')" disabled>🔥 Hellfire (<span id="qty-hellfire">0</span>)</button>
+      <button class="ability-btn" id="ability-sonar" onclick="selectAbility('sonar')" disabled>📡 Sonar (<span id="qty-sonar">0</span>)</button>
+    </div>
+
     <!-- Grid Viewport -->
     <div class="grid-viewport" id="grid-container"></div>
 
@@ -113,7 +129,7 @@
     </div>
 
     <!-- Fleet Deployment Dock -->
-    <div class="dock-container">
+    <div class="dock-container" id="dock-wrapper">
       <div class="dock-title">⚓ Fleet Deployment Dock</div>
       <div class="dock-ships" id="dock-ships"></div>
     </div>
@@ -128,7 +144,7 @@
       <div class="shop-item">
         <div>
           <div style="font-size: 0.85rem; font-weight: bold;">Hellfire Strike</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Melt the enemy board</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">3x3 Cluster Blast</div>
         </div>
         <button class="buy-btn" onclick="buyItem('hellfire', 150)">150 🪙</button>
       </div>
@@ -136,7 +152,7 @@
       <div class="shop-item">
         <div>
           <div style="font-size: 0.85rem; font-weight: bold;">Sonar Ping</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Find where they're hiding</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Reveals enemy ships nearby</div>
         </div>
         <button class="buy-btn" onclick="buyItem('sonar', 100)">100 🪙</button>
       </div>
@@ -154,11 +170,16 @@
       rank: savedStats.rank ? savedStats.rank : 'DEGENERATE'
     };
     
+    let inventory = JSON.parse(localStorage.getItem('battleship_inventory')) || { hellfire: 0, sonar: 0 };
     let currentTab = 'fleet';
     let currentOrientation = 'H';
     let selectedDockShip = null;
+    let selectedAbility = 'normal';
     let placedShips = [];
-    let playerBoard = Array(100).fill(0);
+    
+    // Board State arrays
+    let playerBoard = Array(100).fill(0);       // Own fleet arrangement
+    let targetGridState = Array(100).fill(null); // Opponent fog-of-war grid
     let soundEnabled = true;
 
     const FLEET_TYPES = [
@@ -215,6 +236,30 @@
       if (winEl) winEl.innerText = stats.wins;
       if (lossEl) lossEl.innerText = stats.losses;
       if (rankEl) rankEl.innerText = stats.rank;
+
+      // Update Inventory Abilities
+      const hellfireQty = document.getElementById('qty-hellfire');
+      const sonarQty = document.getElementById('qty-sonar');
+      const hellfireBtn = document.getElementById('ability-hellfire');
+      const sonarBtn = document.getElementById('ability-sonar');
+
+      if (hellfireQty) hellfireQty.innerText = inventory.hellfire;
+      if (sonarQty) sonarQty.innerText = inventory.sonar;
+
+      if (hellfireBtn) hellfireBtn.disabled = inventory.hellfire <= 0;
+      if (sonarBtn) sonarBtn.disabled = inventory.sonar <= 0;
+    };
+
+    window.selectAbility = function(ability) {
+      if (ability !== 'normal' && inventory[ability] <= 0) return;
+      selectedAbility = ability;
+      
+      document.getElementById('ability-normal').classList.toggle('active', ability === 'normal');
+      document.getElementById('ability-hellfire').classList.toggle('active', ability === 'hellfire');
+      document.getElementById('ability-sonar').classList.toggle('active', ability === 'sonar');
+
+      updateStatus(`Weapon selected: ${ability.toUpperCase()}`);
+      triggerHaptic('light');
     };
 
     window.updateStatus = function(message) {
@@ -233,23 +278,63 @@
         cell.className = 'grid-cell';
         cell.dataset.index = i;
 
-        if (playerBoard && playerBoard[i]) {
-          cell.classList.add('ship-placed');
+        if (currentTab === 'fleet') {
+          // WAR FLEET: Only show your own ships!
+          if (playerBoard && playerBoard[i]) {
+            cell.classList.add('ship-placed');
+          }
+        } else if (currentTab === 'target') {
+          // FIRE GRID: Hidden fog of war (Only hits/misses/reveals show up)
+          if (targetGridState[i]) {
+            cell.classList.add(targetGridState[i]);
+          }
         }
 
         cell.addEventListener('click', () => {
           if (currentTab === 'fleet' && selectedDockShip) {
             tryPlaceSelectedShip(i);
           } else if (currentTab === 'target') {
-            cell.classList.add(Math.random() < 0.3 ? 'hit' : 'miss');
-            updateStatus(cell.classList.contains('hit') ? "Boom! Direct hit!" : "Splash. Total miss.");
-            triggerHaptic('medium');
+            handleAttack(i);
           }
         });
 
         gridEl.appendChild(cell);
       }
     };
+
+    function handleAttack(index) {
+      if (targetGridState[index] !== null) {
+        updateStatus("Already fired at those coordinates!");
+        return;
+      }
+
+      if (selectedAbility === 'hellfire' && inventory.hellfire > 0) {
+        inventory.hellfire--;
+        // 3x3 blast area
+        const blastIndices = [index, index-1, index+1, index-10, index+10, index-11, index-9, index+9, index+11];
+        blastIndices.forEach(idx => {
+          if (idx >= 0 && idx < 100) {
+            targetGridState[idx] = Math.random() < 0.4 ? 'hit' : 'miss';
+          }
+        });
+        updateStatus("🔥 HELLFIRE STRIKE UNLEASHED!");
+        selectAbility('normal');
+      } else if (selectedAbility === 'sonar' && inventory.sonar > 0) {
+        inventory.sonar--;
+        targetGridState[index] = 'revealed';
+        updateStatus("📡 Sonar scan complete. Enemy position revealed!");
+        selectAbility('normal');
+      } else {
+        // Standard Shot
+        targetGridState[index] = Math.random() < 0.35 ? 'hit' : 'miss';
+        updateStatus(targetGridState[index] === 'hit' ? "BOOM! Direct hit!" : "Splash. Total miss.");
+      }
+
+      localStorage.setItem('battleship_inventory', JSON.stringify(inventory));
+      updateStatsDisplay();
+      renderGrid();
+      triggerHaptic('medium');
+    }
 
     window.switchTab = function(tab) {
       if (tab === 'shop') {
@@ -262,10 +347,15 @@
       const fleetBtn = document.getElementById('tab-fleet');
       const targetBtn = document.getElementById('tab-target');
       const shopBtn = document.getElementById('tab-shop');
+      const dockWrapper = document.getElementById('dock-wrapper');
 
       if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
       if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
       if (shopBtn) shopBtn.classList.toggle('active', tab === 'shop');
+
+      if (dockWrapper) {
+        dockWrapper.style.display = (tab === 'fleet') ? 'flex' : 'none';
+      }
 
       renderGrid();
       if (tab === 'target') {
@@ -296,10 +386,13 @@
     window.buyItem = function(itemCode, cost) {
       if (stats.shipcoins >= cost) {
         stats.shipcoins -= cost;
+        inventory[itemCode] = (inventory[itemCode] || 0) + 1;
+        
         localStorage.setItem('battleship_stats', JSON.stringify(stats));
+        localStorage.setItem('battleship_inventory', JSON.stringify(inventory));
+        
         updateStatsDisplay();
-        alert("Pleasure doing business, degen.");
-        closeShop();
+        alert(`Acquired ${itemCode.toUpperCase()}! Check your ability bar during battle.`);
         triggerHaptic('heavy');
       } else {
         alert("You're too broke for this. Go win a match!");
