@@ -24,10 +24,12 @@
   body { background: var(--bg-dark); color: var(--text-main); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; overflow-x: hidden; padding-bottom: 20px; }
 
   header { width: 100%; padding: 10px 16px; background: var(--panel-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--grid-border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-  .title { font-weight: 900; font-size: 1rem; color: var(--accent-red); letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
+  .title { font-weight: 900; font-size: 0.95rem; color: var(--accent-red); letter-spacing: 1.5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; }
   
   .header-badges { display: flex; gap: 6px; align-items: center; }
   .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); }
+  .badge-btn { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-blue); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
+  .badge-btn:hover { background: #233d5a; }
 
   .stats-bar { display: flex; justify-content: space-around; width: 340px; background: #0b1522; border: 1px solid var(--grid-border); padding: 5px; border-radius: 8px; margin-top: 6px; font-size: 0.75rem; font-weight: bold; }
   .stats-val { color: var(--accent-blue); }
@@ -97,6 +99,7 @@
   .controls { width: 340px; margin-top: 6px; display: flex; gap: 8px; }
   .btn-primary { flex: 1; padding: 10px; background: linear-gradient(135deg, #ff3344, #b71c1c); border: none; border-radius: 10px; color: #fff; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(50%); }
+  .btn-surrender { background: #261a22; border: 1px solid var(--accent-red); color: var(--accent-red); }
 
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 10, 15, 0.92); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
   .modal-overlay.show { opacity: 1; pointer-events: auto; }
@@ -110,6 +113,7 @@
 <header>
   <div class="title">☠️ BATTLESHIP UNRATED</div>
   <div class="header-badges">
+    <button class="badge-btn" id="sound-btn" onclick="toggleSound()">🔊 SOUND</button>
     <div class="badge">⚡ <span id="energy-val">3</span></div>
   </div>
 </header>
@@ -155,6 +159,7 @@
 
 <div class="controls">
   <button class="btn-primary" id="btn-match" onclick="startPvPMatch()" disabled>⚔️ LOCK FLEET & HUNT</button>
+  <button class="btn-primary btn-surrender" id="btn-surrender" onclick="surrenderMatch()" style="display:none;">🏳️ SURRENDER</button>
 </div>
 
 <div class="modal-overlay" id="modal">
@@ -175,6 +180,7 @@
 
   let energy = 3;
   let currentTab = 'fleet'; 
+  let soundEnabled = true;
   
   const FLEET_TYPES = [
     { id: 'carrier', name: 'Carrier', size: 5 },
@@ -195,7 +201,15 @@
   let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0 };
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById('sound-btn');
+    btn.innerText = soundEnabled ? '🔊 SOUND' : '🔇 MUTED';
+    btn.style.color = soundEnabled ? 'var(--accent-blue)' : 'var(--text-muted)';
+  }
+
   function playSound(type) {
+    if (!soundEnabled) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -331,6 +345,12 @@
     const abilityBar = document.getElementById('ability-bar');
     if (abilityBar) abilityBar.classList.add('active');
 
+    const matchBtn = document.getElementById('btn-match');
+    if (matchBtn) matchBtn.style.display = 'none';
+
+    const surrenderBtn = document.getElementById('btn-surrender');
+    if (surrenderBtn) surrenderBtn.style.display = 'block';
+
     myShots.fill(null);
     enemyShotsOnMe.fill(null);
     updateStatus('ESTABLISHING BLOOD-LINK...');
@@ -372,7 +392,6 @@
         } else {
           playSound('miss');
         }
-        updateStatus(data.attackerTaunt); // <--- Show attacker message
       } else {
         if (data.isHit) {
           playSound('hit');
@@ -380,8 +399,9 @@
         } else {
           playSound('miss');
         }
-        updateStatus(data.defenderTaunt); // <--- Show defender reaction message
       }
+
+      updateStatus(data.taunt);
 
       isMyTurn = data.nextTurn === socket.id;
       const boardBox = document.getElementById('board-box');
@@ -406,109 +426,17 @@
       updateStatus('COWARD FLED! EASY WIN!');
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.add('locked');
+      stats.wins++;
+      localStorage.setItem('battleship_stats', JSON.stringify(stats));
+      updateStatsDisplay();
+      showModal('🏆 VICTORY BY DEFAULT!', 'Opponent abandoned ship.');
     });
   }
 
-  function selectAbility(type) {
-    if ((type === 'recon' && energy < 2) || (type === 'hellfire' && energy < 4)) return;
-    selectedAbility = type;
-    updateUI();
-  }
-
-  function handleCellClick(idx) {
-    if (!inBattle) {
-      if (selectedDockShip) placeShipAt(idx);
-      return;
-    }
-
-    if (!isMyTurn || myShots[idx] !== null) return;
-    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: selectedAbility });
-  }
-
-  function triggerShake() {
-    const box = document.getElementById('board-box');
-    if (box) {
-      box.classList.add('shake');
-      setTimeout(() => box.classList.remove('shake'), 300);
-    }
-  }
-
-  function renderGrid() {
-    const gridEl = document.getElementById('grid');
-    if (!gridEl) return;
-    gridEl.innerHTML = '';
-
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-
-      if (currentTab === 'target') {
-        if (myShots[i] === 'hit') cell.classList.add('hit');
-        else if (myShots[i] === 'miss') cell.classList.add('miss');
-        else cell.onclick = () => handleCellClick(i);
-      } else {
-        const shipId = playerBoard[i];
-        if (shipId !== 0) {
-          cell.classList.add('ship-part', `ship-${shipId}`);
-        }
-        if (!inBattle) {
-          cell.onclick = () => handleCellClick(i);
-        }
-        if (enemyShotsOnMe[i] === 'hit') cell.classList.add('hit');
-        if (enemyShotsOnMe[i] === 'miss') cell.classList.add('miss');
-      }
-
-      gridEl.appendChild(cell);
-    }
-  }
-
-  function updateStatsDisplay() {
-    document.getElementById('stat-wins').innerText = stats.wins;
-    document.getElementById('stat-losses').innerText = stats.losses;
-    const rank = stats.wins >= 10 ? 'FLEET ADMIRAL' : stats.wins >= 5 ? 'SEA DOG' : 'DEGENERATE';
-    document.getElementById('stat-rank').innerText = rank;
-  }
-
-  function updateStatus(msg) { 
-    const statusMsg = document.getElementById('status-msg');
-    if (statusMsg) statusMsg.innerText = msg; 
-  }
-  
-  function updateUI() { 
-    const energyVal = document.getElementById('energy-val');
-    if (energyVal) energyVal.innerText = energy;
-
-    document.getElementById('abi-normal').classList.toggle('active', selectedAbility === 'normal');
-    document.getElementById('abi-recon').classList.toggle('active', selectedAbility === 'recon');
-    document.getElementById('abi-hellfire').classList.toggle('active', selectedAbility === 'hellfire');
-    
-    document.getElementById('abi-recon').disabled = energy < 2;
-    document.getElementById('abi-hellfire').disabled = energy < 4;
-
-    renderGrid(); 
-  }
-
-  function switchTab(tab) { 
-    currentTab = tab; 
-    document.getElementById('tab-target').classList.toggle('active', tab === 'target');
-    document.getElementById('tab-fleet').classList.toggle('active', tab === 'fleet');
-    renderGrid(); 
-  }
-
-  function showModal(title, desc) { 
-    document.getElementById('modal-title').innerText = title; 
-    document.getElementById('modal-desc').innerText = desc; 
-    document.getElementById('modal').classList.add('show'); 
-  }
-
-  function closeModal() { 
-    if (audioCtx.state === 'suspended') audioCtx.resume(); 
-    document.getElementById('modal').classList.remove('show'); 
-  }
-
-  updateStatsDisplay();
-  renderDock();
-  renderGrid();
-</script>
-</body>
-</html>
+  function surrenderMatch() {
+    if (!confirm('Are you sure you want to surrender this match?')) return;
+    stats.losses++;
+    localStorage.setItem('battleship_stats', JSON.stringify(stats));
+    updateStatsDisplay();
+    if (socket) socket.disconnect();
+    showModal('🏳️ SURRENDERED!', '
