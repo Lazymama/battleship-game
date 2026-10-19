@@ -113,7 +113,7 @@
   <div class="title">☠️ BATTLESHIP UNRATED</div>
   <div class="header-badges">
     <button class="badge-btn" id="sound-btn" onclick="toggleSound()">🔊 SOUND</button>
-    <div class="badge">⚡ <span id="energy-val">3</span></div>
+    <div class="badge">🪙 <span id="stat-coins">0</span> Shipcoins</div>
   </div>
 </header>
 
@@ -126,6 +126,7 @@
 <div class="mode-switch">
   <button class="tab-btn active" id="tab-fleet" onclick="switchTab('fleet')">🛡️ War Fleet</button>
   <button class="tab-btn" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
+  <button class="tab-btn" id="tab-shop" onclick="switchTab('shop')">🛒 Shop</button>
 </div>
 
 <div class="ability-bar" id="ability-bar">
@@ -161,13 +162,22 @@
   <button class="btn-primary btn-surrender" id="btn-surrender" onclick="surrenderMatch()" style="display:none;">🏳️ SURRENDER</button>
 </div>
 
-<div class="modal-overlay" id="modal">
+<div class="modal-overlay" id="shop-modal">
   <div class="modal-card">
-    <div class="modal-title" id="modal-title">⚠️ BATTLE REPORT</div>
-    <div class="modal-text" id="modal-desc"></div>
-    <button class="btn-primary" onclick="closeModal()">KEEP FIGHTING</button>
+    <div class="modal-title">🛒 BLACK MARKET SHOP</div>
+    <div class="modal-text" id="shop-balance-display">BALANCE: 0 SHIPCOINS</div>
+    
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+      <button class="btn-action" style="padding: 10px; background: #1a334e; text-align: left;" onclick="buyItem('extra_energy', 150)">
+        ⚡ <strong>Extra Battery (+1⚡)</strong><br>
+        <small>Start with 4 Energy instead of 3. Cost: 150 🪙</small>
+      </button>
+    </div>
+
+    <button class="btn-primary" onclick="closeShop()">CLOSE SHOP</button>
   </div>
 </div>
+
 
 <script>
   const SERVER_URL = 'http://localhost:3000'; 
@@ -197,8 +207,16 @@
   let myShots = Array(100).fill(null); 
   let enemyShotsOnMe = Array(100).fill(null);
 
-  let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0 };
+  let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0, shipcoins: 0 };
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Telegram Haptic Feedback Helper
+  function triggerHaptic(style) {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred(style); 
+    }
+  }
+
   
   function toggleSound() {
     soundEnabled = !soundEnabled;
@@ -212,6 +230,14 @@
   function playSound(type) {
     if (!soundEnabled) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    
+    // Trigger phone vibration based on hit or miss
+    if (type === 'hit') {
+      triggerHaptic('heavy'); // Strong thud for direct hits
+    } else if (type === 'miss') {
+      triggerHaptic('light'); // Subtle tap for splashes/misses
+    }
+
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
@@ -406,9 +432,10 @@
 
       if (data.isGameOver) {
         if (isMeAttacker) {
-          stats.wins++;
-          showModal('🏆 DOMINATION!', 'You completely wiped the floor with them.');
-        } else {
+      stats.wins++;
+      stats.shipcoins += 100; // <--- Add it right here too!
+      showModal('🏆 DOMINATION!', 'You completely wiped the floor with them.');
+        }else {
           stats.losses++;
           showModal('☠️ TOTAL HUMILIATION!', 'Your fleet is sleeping with the fishes.');
         }
@@ -422,11 +449,11 @@
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.add('locked');
       stats.wins++;
+      stats.shipcoins += 100; // <--- Add it right here as well!
       localStorage.setItem('battleship_stats', JSON.stringify(stats));
       updateStatsDisplay();
       showModal('🏆 VICTORY BY DEFAULT!', 'Opponent abandoned ship.');
     });
-  }
 
   function surrenderMatch() {
     if (!confirm('Are you sure you want to surrender this match?')) return;
@@ -496,9 +523,11 @@
     const winsEl = document.getElementById('stat-wins');
     const lossesEl = document.getElementById('stat-losses');
     const rankEl = document.getElementById('stat-rank');
+    const coinsEl = document.getElementById('stat-coins');
 
     if (winsEl) winsEl.innerText = stats.wins;
     if (lossesEl) lossesEl.innerText = stats.losses;
+    if (coinsEl) coinsEl.innerText = stats.shipcoins; // Updated to shipcoins
     if (rankEl) {
       const rank = stats.wins >= 10 ? 'FLEET ADMIRAL' : stats.wins >= 5 ? 'SEA DOG' : 'DEGENERATE';
       rankEl.innerText = rank;
@@ -531,35 +560,69 @@
     renderGrid(); 
   }
 
-  function switchTab(tab) { 
-    currentTab = tab; 
+ 
+
+  // Fixes startPvPMatch closing brace issue
+  }
+  function switchTab(tab) {
+    if (tab === 'shop') {
+      openShop();
+      return;
+    }
+    currentTab = tab;
     const targetBtn = document.getElementById('tab-target');
     const fleetBtn = document.getElementById('tab-fleet');
     if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
     if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
-    renderGrid(); 
+    renderGrid();
   }
 
-  function showModal(title, desc) { 
+  function showModal(title, desc) {
     const modalTitle = document.getElementById('modal-title');
     const modalDesc = document.getElementById('modal-desc');
     const modalBox = document.getElementById('modal');
 
-    if (modalTitle) modalTitle.innerText = title; 
-    if (modalDesc) modalDesc.innerText = desc; 
-    if (modalBox) modalBox.classList.add('show'); 
+    if (modalTitle) modalTitle.innerText = title;
+    if (modalDesc) modalDesc.innerText = desc;
+    if (modalBox) modalBox.classList.add('show');
   }
 
-  function closeModal() { 
-    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+  function closeModal() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const modalBox = document.getElementById('modal');
-    if (modalBox) modalBox.classList.remove('show'); 
-    location.reload(); 
+    if (modalBox) modalBox.classList.remove('show');
+    location.reload();
   }
 
-  updateStatsDisplay();
-  renderDock();
-  renderGrid();
+  // Open and Close Shop Modal
+  function openShop() {
+    const modal = document.getElementById('shop-modal');
+    const balanceEl = document.getElementById('shop-balance-display');
+    if (balanceEl) balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
+    if (modal) modal.classList.add('active');
+    triggerHaptic('medium');
+  }
+
+  function closeShop() {
+    const modal = document.getElementById('shop-modal');
+    if (modal) modal.classList.remove('active');
+    triggerHaptic('light');
+  }
+
+  // Buy Shop Items
+  function buyItem(itemCode, cost) {
+    if (stats.shipcoins >= cost) {
+      stats.shipcoins -= cost;
+      localStorage.setItem('battleship_stats', JSON.stringify(stats));
+      updateStatsDisplay();
+      alert("Purchase successful!");
+      closeShop();
+      triggerHaptic('heavy');
+    } else {
+      alert("Not enough Shipcoins!");
+      triggerHaptic('light');
+    }
+  }
 </script>
 </body>
 </html>
