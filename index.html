@@ -210,421 +210,106 @@
   let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { wins: 0, losses: 0, shipcoins: 0 };
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // Telegram Haptic Feedback Helper
+  // 1. TELEGRAM WEBAPP & HAPTICS
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
   function triggerHaptic(style) {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.impactOccurred(style); 
+      window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
     }
   }
 
-  
-  function toggleSound() {
-    soundEnabled = !soundEnabled;
-    const btn = document.getElementById('sound-btn');
-    if (btn) {
-      btn.innerText = soundEnabled ? '🔊 SOUND' : '🔇 MUTED';
-      btn.style.color = soundEnabled ? 'var(--accent-blue)' : 'var(--text-muted)';
+  // 2. UI DISPLAY UPDATES
+  window.updateStatsDisplay = function() {
+    const coinEl = document.getElementById('shipcoin-count') || document.querySelector('.shipcoins');
+    const winEl = document.getElementById('win-count');
+    const lossEl = document.getElementById('loss-count');
+    const rankEl = document.getElementById('rank-display');
+
+    if (coinEl) coinEl.innerText = `${stats.shipcoins} Shipcoins`;
+    if (winEl) winEl.innerText = stats.wins;
+    if (lossEl) lossEl.innerText = stats.losses;
+    if (rankEl) rankEl.innerText = stats.rank;
+  };
+
+  window.updateStatus = function(message) {
+    const statusEl = document.getElementById('status-display') || document.getElementById('dock-status');
+    if (statusEl) {
+      statusEl.innerText = message;
     }
-  }
+  };
 
-  function playSound(type) {
-    if (!soundEnabled) return;
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    
-    // Trigger phone vibration based on hit or miss
-    if (type === 'hit') {
-      triggerHaptic('heavy'); // Strong thud for direct hits
-    } else if (type === 'miss') {
-      triggerHaptic('light'); // Subtle tap for splashes/misses
-    }
-
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if (type === 'hit') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-      osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-    } else if (type === 'miss') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
-    }
-  }
-
-  function renderDock() {
-    const dockEl = document.getElementById('dock-ships');
-    if (!dockEl) return;
-    dockEl.innerHTML = '';
-
-    FLEET_TYPES.forEach(ship => {
-      const isPlaced = placedShips.some(s => s.id === ship.id);
-      const isSelected = selectedDockShip === ship.id;
-
-      const btn = document.createElement('button');
-      btn.className = `dock-ship-btn ${isPlaced ? 'placed' : ''} ${isSelected ? 'selected' : ''}`;
-      btn.innerHTML = `<span>${ship.name}</span> <span>(${ship.size})</span>`;
-      btn.onclick = () => {
-        if (!isPlaced) {
-          selectedDockShip = ship.id;
-          updateStatus(`PLACING ${ship.name.toUpperCase()} (${currentOrientation === 'H' ? 'HORIZ' : 'VERT'})`);
-          renderDock();
-        }
-      };
-      dockEl.appendChild(btn);
-    });
-
-    const allPlaced = placedShips.length === FLEET_TYPES.length;
-    const matchBtn = document.getElementById('btn-match');
-    if (matchBtn) matchBtn.disabled = !allPlaced;
-    if (allPlaced && !inBattle) {
-      updateStatus('FLEET LOCKED & LOADED. READY FOR WAR.');
-    }
-  }
-
-  function toggleOrientation() {
-    currentOrientation = currentOrientation === 'H' ? 'V' : 'H';
-    const orientLabel = document.getElementById('orient-label');
-    if (orientLabel) orientLabel.innerText = currentOrientation === 'H' ? 'HORIZ' : 'VERT';
-    if (selectedDockShip) {
-      const shipObj = FLEET_TYPES.find(s => s.id === selectedDockShip);
-      updateStatus(`PLACING ${shipObj.name.toUpperCase()} (${currentOrientation === 'H' ? 'HORIZ' : 'VERT'})`);
-    }
-  }
-
-  function resetDeployment() {
-    playerBoard.fill(0);
-    placedShips = [];
-    selectedDockShip = null;
-    renderDock();
-    renderGrid();
-    updateStatus('WIPED CLEAN. ARRANGE YOUR SHIPS.');
-  }
-
-  function placeShipAt(startIdx) {
-    if (!selectedDockShip) return;
-    const shipObj = FLEET_TYPES.find(s => s.id === selectedDockShip);
-    const row = Math.floor(startIdx / 10);
-    const col = startIdx % 10;
-    
-    let targetIndices = [];
-    for (let i = 0; i < shipObj.size; i++) {
-      let r = currentOrientation === 'H' ? row : row + i;
-      let c = currentOrientation === 'H' ? col + i : col;
-      if (r > 9 || c > 9) return;
-      targetIndices.push(r * 10 + c);
-    }
-
-    if (targetIndices.some(idx => playerBoard[idx] !== 0)) return;
-
-    targetIndices.forEach(idx => playerBoard[idx] = shipObj.id);
-    placedShips.push({ id: shipObj.id, indices: targetIndices });
-
-    selectedDockShip = null;
-    renderDock();
-    renderGrid();
-  }
-
-  function autoDeployRandom() {
-    playerBoard.fill(0);
-    placedShips = [];
-    selectedDockShip = null;
-
-    FLEET_TYPES.forEach(ship => {
-      let placed = false;
-      while (!placed) {
-        let horiz = Math.random() < 0.5;
-        let row = Math.floor(Math.random() * (horiz ? 10 : 10 - ship.size));
-        let col = Math.floor(Math.random() * (horiz ? 10 - ship.size : 10));
-        let idx = row * 10 + col;
-        let targetIndices = [];
-
-        for (let i = 0; i < ship.size; i++) {
-          targetIndices.push(horiz ? idx + i : idx + i * 10);
-        }
-
-        if (targetIndices.every(i => playerBoard[i] === 0)) {
-          targetIndices.forEach(i => playerBoard[i] = ship.id);
-          placedShips.push({ id: ship.id, indices: targetIndices });
-          placed = true;
-        }
-      }
-    });
-
-    renderDock();
-    renderGrid();
-  }
-
-  function startPvPMatch() {
-    inBattle = true;
-    switchTab('target');
-    const deployPanel = document.getElementById('deploy-panel');
-    if (deployPanel) deployPanel.style.display = 'none';
-    
-    const abilityBar = document.getElementById('ability-bar');
-    if (abilityBar) abilityBar.classList.add('active');
-
-    const matchBtn = document.getElementById('btn-match');
-    if (matchBtn) matchBtn.style.display = 'none';
-
-    const surrenderBtn = document.getElementById('btn-surrender');
-    if (surrenderBtn) surrenderBtn.style.display = 'block';
-
-    myShots.fill(null);
-    enemyShotsOnMe.fill(null);
-    updateStatus('ESTABLISHING BLOOD-LINK...');
-    
-    if (!socket) socket = io(SERVER_URL);
-
-    const numericBoard = playerBoard.map(v => v !== 0 ? 1 : 0);
-    socket.emit('join_game', { roomId: roomId, playerBoard: numericBoard });
-
-    socket.on('game_state', () => {
-      updateStatus('WAITING FOR ENEMY BAIT...');
-      const boardBox = document.getElementById('board-box');
-      if (boardBox) boardBox.classList.add('locked');
-    });
-
-    socket.on('game_start', (data) => {
-      isMyTurn = data.turn === socket.id;
-      updateStatus(isMyTurn ? 'YOUR TURN! OBLITERATE THEM!' : 'OPPONENT IS LINING UP...');
-      const boardBox = document.getElementById('board-box');
-      if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
-    });
-
-    socket.on('shot_result', (data) => {
-      const isMeAttacker = data.attackerId === socket.id;
-
-      data.hits.forEach(item => {
-        if (isMeAttacker) {
-          myShots[item.idx] = item.isHit ? 'hit' : 'miss';
-        } else {
-          enemyShotsOnMe[item.idx] = item.isHit ? 'hit' : 'miss';
-        }
-      });
-
-      if (isMeAttacker) {
-        energy = data.attackerEnergy;
-        if (data.isHit) playSound('hit');
-        else playSound('miss');
-        updateStatus(data.attackerTaunt || data.taunt || "ATTACK FIRED!");
-      } else {
-        if (data.isHit) playSound('hit');
-        else playSound('miss');
-        updateStatus(data.defenderTaunt || data.taunt || "ENEMY FIRED!");
-      }
-
-      if (data.isHit) triggerShake();
-
-      isMyTurn = data.nextTurn === socket.id;
-      const boardBox = document.getElementById('board-box');
-      if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
-      selectedAbility = 'normal';
-      updateUI();
-
-      if (data.isGameOver) {
-        if (isMeAttacker) {
-      stats.wins++;
-      stats.shipcoins += 100; // <--- Add it right here too!
-      showModal('🏆 DOMINATION!', 'You completely wiped the floor with them.');
-        }else {
-          stats.losses++;
-          showModal('☠️ TOTAL HUMILIATION!', 'Your fleet is sleeping with the fishes.');
-        }
-        localStorage.setItem('battleship_stats', JSON.stringify(stats));
-        updateStatsDisplay();
-      }
-    });
-
-    socket.on('opponent_left', () => {
-      updateStatus('COWARD FLED! EASY WIN!');
-      const boardBox = document.getElementById('board-box');
-      if (boardBox) boardBox.classList.add('locked');
-      stats.wins++;
-      stats.shipcoins += 100; // <--- Add it right here as well!
-      localStorage.setItem('battleship_stats', JSON.stringify(stats));
-      updateStatsDisplay();
-      showModal('🏆 VICTORY BY DEFAULT!', 'Opponent abandoned ship.');
-    });
-
-  function surrenderMatch() {
-    if (!confirm('Are you sure you want to surrender this match?')) return;
-    stats.losses++;
-    localStorage.setItem('battleship_stats', JSON.stringify(stats));
-    updateStatsDisplay();
-    if (socket) socket.disconnect();
-    showModal('🏳️ SURRENDERED!', 'You gave up like a coward. Match recorded as a loss.');
-    const boardBox = document.getElementById('board-box');
-    if (boardBox) boardBox.classList.add('locked');
-  }
-
-  function selectAbility(type) {
-    if ((type === 'recon' && energy < 2) || (type === 'hellfire' && energy < 4)) return;
-    selectedAbility = type;
-    updateUI();
-  }
-
-  function handleCellClick(idx) {
-    if (!inBattle) {
-      if (selectedDockShip) placeShipAt(idx);
-      return;
-    }
-
-    if (!isMyTurn || myShots[idx] !== null) return;
-    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: selectedAbility });
-  }
-
-  function triggerShake() {
-    const box = document.getElementById('board-box');
-    if (box) {
-      box.classList.add('shake');
-      setTimeout(() => box.classList.remove('shake'), 300);
-    }
-  }
-
-  function renderGrid() {
-    const gridEl = document.getElementById('grid');
+  // 3. GRID RENDERER
+  window.renderGrid = function() {
+    const gridEl = document.getElementById('grid-container') || document.querySelector('.grid') || document.getElementById('fleet-grid');
     if (!gridEl) return;
-    gridEl.innerHTML = '';
+
+    gridEl.innerHTML = ''; // Clear previous grid cells
 
     for (let i = 0; i < 100; i++) {
       const cell = document.createElement('div');
-      cell.className = 'cell';
+      cell.className = 'grid-cell';
+      cell.dataset.index = i;
 
-      if (currentTab === 'target') {
-        if (myShots[i] === 'hit') cell.classList.add('hit');
-        else if (myShots[i] === 'miss') cell.classList.add('miss');
-        else cell.onclick = () => handleCellClick(i);
-      } else {
-        const shipId = playerBoard[i];
-        if (shipId !== 0) {
-          cell.classList.add('ship-part', `ship-${shipId}`);
-        }
-        if (!inBattle) {
-          cell.onclick = () => handleCellClick(i);
-        }
-        if (enemyShotsOnMe[i] === 'hit') cell.classList.add('hit');
-        if (enemyShotsOnMe[i] === 'miss') cell.classList.add('miss');
+      // Render player board ships/hits if present
+      if (typeof playerBoard !== 'undefined' && playerBoard[i]) {
+        cell.classList.add('ship-placed');
       }
 
       gridEl.appendChild(cell);
     }
-  }
-
-  function updateStatsDisplay() {
-    const winsEl = document.getElementById('stat-wins');
-    const lossesEl = document.getElementById('stat-losses');
-    const rankEl = document.getElementById('stat-rank');
-    const coinsEl = document.getElementById('stat-coins');
-
-    if (winsEl) winsEl.innerText = stats.wins;
-    if (lossesEl) lossesEl.innerText = stats.losses;
-    if (coinsEl) coinsEl.innerText = stats.shipcoins; // Updated to shipcoins
-    if (rankEl) {
-      const rank = stats.wins >= 10 ? 'FLEET ADMIRAL' : stats.wins >= 5 ? 'SEA DOG' : 'DEGENERATE';
-      rankEl.innerText = rank;
-    }
-  }
-
-  function updateStatus(msg) { 
-    const statusMsg = document.getElementById('status-msg');
-    if (statusMsg) statusMsg.innerText = msg; 
-  }
-  
-  function updateUI() { 
-    const energyVal = document.getElementById('energy-val');
-    if (energyVal) energyVal.innerText = energy;
-
-    const normalBtn = document.getElementById('abi-normal');
-    const reconBtn = document.getElementById('abi-recon');
-    const hellfireBtn = document.getElementById('abi-hellfire');
-
-    if (normalBtn) normalBtn.classList.toggle('active', selectedAbility === 'normal');
-    if (reconBtn) {
-      reconBtn.classList.toggle('active', selectedAbility === 'recon');
-      reconBtn.disabled = energy < 2;
-    }
-    if (hellfireBtn) {
-      hellfireBtn.classList.toggle('active', selectedAbility === 'hellfire');
-      hellfireBtn.disabled = energy < 4;
-    }
-
-    renderGrid(); 
-  }
-
-  // Define missing helper functions globally
-  window.renderGrid = function() {
-    const gridContainer = document.getElementById('grid-container') || document.querySelector('.grid-container');
-    if (gridContainer) {
-      // Basic grid rendering fallback if needed
-      gridContainer.innerHTML = ''; 
-    }
   };
 
-  window.updateStatus = function(message) {
-    const statusEl = document.getElementById('status-display');
-    if (statusEl) {
-      statusEl.innerText = message;
-    }
-  }; 
-
-  // Fixes startPvPMatch closing brace issue
-  }
-  function switchTab(tab) {
+  // 4. NAVIGATION & TAB SWITCHER
+  window.switchTab = function(tab) {
     if (tab === 'shop') {
       openShop();
       return;
     }
+
     currentTab = tab;
-    const targetBtn = document.getElementById('tab-target');
+
     const fleetBtn = document.getElementById('tab-fleet');
-    if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
+    const targetBtn = document.getElementById('tab-target');
+    const shopBtn = document.getElementById('tab-shop');
+
     if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
+    if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
+    if (shopBtn) shopBtn.classList.toggle('active', tab === 'shop');
+
     renderGrid();
-  }
+  };
 
-  function showModal(title, desc) {
-    const modalTitle = document.getElementById('modal-title');
-    const modalDesc = document.getElementById('modal-desc');
-    const modalBox = document.getElementById('modal');
-
-    if (modalTitle) modalTitle.innerText = title;
-    if (modalDesc) modalDesc.innerText = desc;
-    if (modalBox) modalBox.classList.add('show');
-  }
-
-  function closeModal() {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const modalBox = document.getElementById('modal');
-    if (modalBox) modalBox.classList.remove('show');
-    location.reload();
-  }
-
-  // Open and Close Shop Modal
-  function openShop() {
+  // 5. SHOP MODAL CONTROLLERS
+  window.openShop = function() {
     const modal = document.getElementById('shop-modal');
     const balanceEl = document.getElementById('shop-balance-display');
-    if (balanceEl) balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
-    if (modal) modal.classList.add('active');
+
+    if (balanceEl) {
+      balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
+    }
+
+    if (modal) {
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+    }
+
     triggerHaptic('medium');
-  }
+  };
 
-  function closeShop() {
+  window.closeShop = function() {
     const modal = document.getElementById('shop-modal');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
     triggerHaptic('light');
-  }
+  };
 
-  // Buy Shop Items
-  function buyItem(itemCode, cost) {
+  window.buyItem = function(itemCode, cost) {
     if (stats.shipcoins >= cost) {
       stats.shipcoins -= cost;
       localStorage.setItem('battleship_stats', JSON.stringify(stats));
@@ -636,7 +321,13 @@
       alert("Not enough Shipcoins!");
       triggerHaptic('light');
     }
-  }
+  };
+
+  // 6. INITIAL LOAD
+  document.addEventListener('DOMContentLoaded', () => {
+    updateStatsDisplay();
+    renderGrid();
+  });
 </script>
 </body>
 </html>
