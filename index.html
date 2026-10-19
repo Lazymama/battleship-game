@@ -29,7 +29,6 @@
   .header-badges { display: flex; gap: 6px; align-items: center; }
   .badge { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-yellow); display: flex; align-items: center; gap: 4px; box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); }
   .badge-btn { background: #1a365d; border: 1px solid var(--accent-blue); padding: 4px 8px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: var(--accent-blue); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
-  .badge-btn:hover { background: #233d5a; }
 
   .stats-bar { display: flex; justify-content: space-around; width: 340px; background: #0b1522; border: 1px solid var(--grid-border); padding: 5px; border-radius: 8px; margin-top: 6px; font-size: 0.75rem; font-weight: bold; }
   .stats-val { color: var(--accent-blue); }
@@ -204,8 +203,10 @@
   function toggleSound() {
     soundEnabled = !soundEnabled;
     const btn = document.getElementById('sound-btn');
-    btn.innerText = soundEnabled ? '🔊 SOUND' : '🔇 MUTED';
-    btn.style.color = soundEnabled ? 'var(--accent-blue)' : 'var(--text-muted)';
+    if (btn) {
+      btn.innerText = soundEnabled ? '🔊 SOUND' : '🔇 MUTED';
+      btn.style.color = soundEnabled ? 'var(--accent-blue)' : 'var(--text-muted)';
+    }
   }
 
   function playSound(type) {
@@ -386,22 +387,16 @@
 
       if (isMeAttacker) {
         energy = data.attackerEnergy;
-        if (data.isHit) {
-          playSound('hit');
-          triggerShake();
-        } else {
-          playSound('miss');
-        }
+        if (data.isHit) playSound('hit');
+        else playSound('miss');
+        updateStatus(data.attackerTaunt || data.taunt || "ATTACK FIRED!");
       } else {
-        if (data.isHit) {
-          playSound('hit');
-          triggerShake();
-        } else {
-          playSound('miss');
-        }
+        if (data.isHit) playSound('hit');
+        else playSound('miss');
+        updateStatus(data.defenderTaunt || data.taunt || "ENEMY FIRED!");
       }
 
-      updateStatus(data.taunt);
+      if (data.isHit) triggerShake();
 
       isMyTurn = data.nextTurn === socket.id;
       const boardBox = document.getElementById('board-box');
@@ -439,4 +434,132 @@
     localStorage.setItem('battleship_stats', JSON.stringify(stats));
     updateStatsDisplay();
     if (socket) socket.disconnect();
-    showModal('🏳️ SURRENDERED!', '
+    showModal('🏳️ SURRENDERED!', 'You gave up like a coward. Match recorded as a loss.');
+    const boardBox = document.getElementById('board-box');
+    if (boardBox) boardBox.classList.add('locked');
+  }
+
+  function selectAbility(type) {
+    if ((type === 'recon' && energy < 2) || (type === 'hellfire' && energy < 4)) return;
+    selectedAbility = type;
+    updateUI();
+  }
+
+  function handleCellClick(idx) {
+    if (!inBattle) {
+      if (selectedDockShip) placeShipAt(idx);
+      return;
+    }
+
+    if (!isMyTurn || myShots[idx] !== null) return;
+    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: selectedAbility });
+  }
+
+  function triggerShake() {
+    const box = document.getElementById('board-box');
+    if (box) {
+      box.classList.add('shake');
+      setTimeout(() => box.classList.remove('shake'), 300);
+    }
+  }
+
+  function renderGrid() {
+    const gridEl = document.getElementById('grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '';
+
+    for (let i = 0; i < 100; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      if (currentTab === 'target') {
+        if (myShots[i] === 'hit') cell.classList.add('hit');
+        else if (myShots[i] === 'miss') cell.classList.add('miss');
+        else cell.onclick = () => handleCellClick(i);
+      } else {
+        const shipId = playerBoard[i];
+        if (shipId !== 0) {
+          cell.classList.add('ship-part', `ship-${shipId}`);
+        }
+        if (!inBattle) {
+          cell.onclick = () => handleCellClick(i);
+        }
+        if (enemyShotsOnMe[i] === 'hit') cell.classList.add('hit');
+        if (enemyShotsOnMe[i] === 'miss') cell.classList.add('miss');
+      }
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function updateStatsDisplay() {
+    const winsEl = document.getElementById('stat-wins');
+    const lossesEl = document.getElementById('stat-losses');
+    const rankEl = document.getElementById('stat-rank');
+
+    if (winsEl) winsEl.innerText = stats.wins;
+    if (lossesEl) lossesEl.innerText = stats.losses;
+    if (rankEl) {
+      const rank = stats.wins >= 10 ? 'FLEET ADMIRAL' : stats.wins >= 5 ? 'SEA DOG' : 'DEGENERATE';
+      rankEl.innerText = rank;
+    }
+  }
+
+  function updateStatus(msg) { 
+    const statusMsg = document.getElementById('status-msg');
+    if (statusMsg) statusMsg.innerText = msg; 
+  }
+  
+  function updateUI() { 
+    const energyVal = document.getElementById('energy-val');
+    if (energyVal) energyVal.innerText = energy;
+
+    const normalBtn = document.getElementById('abi-normal');
+    const reconBtn = document.getElementById('abi-recon');
+    const hellfireBtn = document.getElementById('abi-hellfire');
+
+    if (normalBtn) normalBtn.classList.toggle('active', selectedAbility === 'normal');
+    if (reconBtn) {
+      reconBtn.classList.toggle('active', selectedAbility === 'recon');
+      reconBtn.disabled = energy < 2;
+    }
+    if (hellfireBtn) {
+      hellfireBtn.classList.toggle('active', selectedAbility === 'hellfire');
+      hellfireBtn.disabled = energy < 4;
+    }
+
+    renderGrid(); 
+  }
+
+  function switchTab(tab) { 
+    currentTab = tab; 
+    const targetBtn = document.getElementById('tab-target');
+    const fleetBtn = document.getElementById('tab-fleet');
+    if (targetBtn) targetBtn.classList.toggle('active', tab === 'target');
+    if (fleetBtn) fleetBtn.classList.toggle('active', tab === 'fleet');
+    renderGrid(); 
+  }
+
+  function showModal(title, desc) { 
+    const modalTitle = document.getElementById('modal-title');
+    const modalDesc = document.getElementById('modal-desc');
+    const modalBox = document.getElementById('modal');
+
+    if (modalTitle) modalTitle.innerText = title; 
+    if (modalDesc) modalDesc.innerText = desc; 
+    if (modalBox) modalBox.classList.add('show'); 
+  }
+
+  function closeModal() { 
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    const modalBox = document.getElementById('modal');
+    if (modalBox) modalBox.classList.remove('show'); 
+    location.reload(); 
+  }
+
+  updateStatsDisplay();
+  renderDock();
+  renderGrid();
+</script>
+</body>
+</html>
