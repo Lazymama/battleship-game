@@ -15,18 +15,23 @@
       --text-muted: #94a3b8;
       --danger: #ef4444;
       --success: #22c55e;
+      --warning: #fbbf24;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background-color: var(--bg-color); color: var(--text-main); display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 12px; }
     
-    .app-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px; }
+    .app-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
     
     /* Header / Stats */
     .header-card { background: var(--card-bg); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid #334155; }
     .title-row { display: flex; justify-content: space-between; align-items: center; }
     h1 { font-size: 1.1rem; color: var(--danger); letter-spacing: 1px; }
-    .currency-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; color: #fbbf24; }
     
+    .header-controls { display: flex; gap: 6px; align-items: center; }
+    .currency-badge { background: #334155; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; color: var(--warning); }
+    .icon-btn { background: #334155; border: none; color: white; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .icon-btn:hover { background: #475569; }
+
     .stats-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); }
     
     /* Mode Switch / Tabs */
@@ -36,14 +41,19 @@
 
     /* Status & Controls */
     .status-banner { background: var(--card-bg); padding: 8px; text-align: center; border-radius: 6px; font-size: 0.85rem; font-weight: 500; color: var(--accent); }
+    
     .action-row { display: flex; gap: 6px; }
     .action-btn { flex: 1; padding: 8px; background: #334155; color: white; border: none; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
     .action-btn:hover { background: #475569; }
+    .action-btn.pvp { background: #8b5cf6; }
+    .action-btn.pvp:hover { background: #7c3aed; }
 
     /* Grid Viewport */
-    .grid-viewport { background: #020617; border: 2px solid #334155; border-radius: 12px; height: 320px; display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; padding: 4px; }
+    .grid-viewport { background: #020617; border: 2px solid #334155; border-radius: 12px; height: 300px; display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px; padding: 4px; }
     .grid-cell { background: #1e293b; border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s; }
     .grid-cell.ship-placed { background: var(--accent); }
+    .grid-cell.hit { background: var(--danger); }
+    .grid-cell.miss { background: #475569; }
 
     /* Deployment Dock */
     .dock-container { background: var(--card-bg); padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -69,7 +79,10 @@
     <div class="header-card">
       <div class="title-row">
         <h1>☠️ BATTLESHIP UNRATED</h1>
-        <div class="currency-badge" id="shipcoin-count">0 Shipcoins</div>
+        <div class="header-controls">
+          <div class="currency-badge" id="shipcoin-count">500 Shipcoins</div>
+          <button class="icon-btn" id="sound-btn" onclick="toggleSound()">🔊</button>
+        </div>
       </div>
       <div class="stats-row">
         <span>WINS: <strong id="win-count">0</strong></span>
@@ -86,16 +99,17 @@
     </div>
 
     <!-- Status Banner -->
-    <div class="status-banner" id="status-display">ARRANGE YOUR FLEET, COMMANDER.</div>
+    <div class="status-banner" id="status-display">PLACE YOUR SHIPS OR GET WRECKED.</div>
 
     <!-- Grid Viewport -->
     <div class="grid-viewport" id="grid-container"></div>
 
     <!-- Action Buttons -->
     <div class="action-row">
-      <button class="action-btn" id="orientation-btn" onclick="toggleOrientation()">ROTATE (HORIZONTAL)</button>
-      <button class="action-btn" onclick="autoDeployRandom()">AUTO DEPLOY</button>
+      <button class="action-btn" id="orientation-btn" onclick="toggleOrientation()">ROTATE (H)</button>
+      <button class="action-btn" onclick="autoDeployRandom()">AUTO</button>
       <button class="action-btn" onclick="resetDeployment()">RESET</button>
+      <button class="action-btn pvp" onclick="findPvPMatch()">⚔️ FIND PVP</button>
     </div>
 
     <!-- Fleet Deployment Dock -->
@@ -108,13 +122,13 @@
   <!-- Shop Modal Overlay -->
   <div class="shop-modal" id="shop-modal">
     <div class="shop-card">
-      <h2 style="font-size: 1rem; color: #fbbf24;">🛒 BLACK MARKET SHOP</h2>
-      <div id="shop-balance-display" style="font-size: 0.85rem; color: var(--text-muted);">BALANCE: 0 SHIPCOINS</div>
+      <h2 style="font-size: 1rem; color: var(--warning);">🛒 BLACK MARKET SHOP</h2>
+      <div id="shop-balance-display" style="font-size: 0.85rem; color: var(--text-muted);">BALANCE: 500 SHIPCOINS</div>
       
       <div class="shop-item">
         <div>
           <div style="font-size: 0.85rem; font-weight: bold;">Hellfire Strike</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Deals heavy area damage</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Melt the enemy board</div>
         </div>
         <button class="buy-btn" onclick="buyItem('hellfire', 150)">150 🪙</button>
       </div>
@@ -122,7 +136,7 @@
       <div class="shop-item">
         <div>
           <div style="font-size: 0.85rem; font-weight: bold;">Sonar Ping</div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">Reveals random enemy sector</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Find where they're hiding</div>
         </div>
         <button class="buy-btn" onclick="buyItem('sonar', 100)">100 🪙</button>
       </div>
@@ -132,12 +146,12 @@
   </div>
 
   <script>
-    // 1. GLOBAL STATE & PERSISTENCE
-    let stats = JSON.parse(localStorage.getItem('battleship_stats')) || { 
-      shipcoins: 500, // Starts with test coins to try items
-      wins: 0, 
-      losses: 0, 
-      rank: 'DEGENERATE' 
+    let savedStats = JSON.parse(localStorage.getItem('battleship_stats')) || {};
+    let stats = {
+      shipcoins: typeof savedStats.shipcoins === 'number' ? savedStats.shipcoins : 500,
+      wins: typeof savedStats.wins === 'number' ? savedStats.wins : 0,
+      losses: typeof savedStats.losses === 'number' ? savedStats.losses : 0,
+      rank: savedStats.rank ? savedStats.rank : 'DEGENERATE'
     };
     
     let currentTab = 'fleet';
@@ -145,6 +159,7 @@
     let selectedDockShip = null;
     let placedShips = [];
     let playerBoard = Array(100).fill(0);
+    let soundEnabled = true;
 
     const FLEET_TYPES = [
       { id: 'carrier', name: 'Carrier', size: 5 },
@@ -154,7 +169,6 @@
       { id: 'destroyer', name: 'Destroyer', size: 2 }
     ];
 
-    // 2. TELEGRAM WEBAPP & HAPTICS
     if (window.Telegram && window.Telegram.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
@@ -170,7 +184,27 @@
       } catch (e) {}
     }
 
-    // 3. UI DISPLAY UPDATES
+    window.toggleSound = function() {
+      soundEnabled = !soundEnabled;
+      const soundBtn = document.getElementById('sound-btn');
+      if (soundBtn) soundBtn.innerText = soundEnabled ? '🔊' : '🔇';
+      updateStatus(soundEnabled ? "Audio blaring." : "Quiet mode activated.");
+      triggerHaptic('light');
+    };
+
+    window.findPvPMatch = function() {
+      if (placedShips.length < 5) {
+        alert("Drop all 5 ships first, you can't raw-dog PvP naked!");
+        return;
+      }
+      updateStatus("Hunting down a victim in PvP...");
+      triggerHaptic('heavy');
+      setTimeout(() => {
+        updateStatus("Target locked. Let's rumble.");
+        switchTab('target');
+      }, 2000);
+    };
+
     window.updateStatsDisplay = function() {
       const coinEl = document.getElementById('shipcoin-count');
       const winEl = document.getElementById('win-count');
@@ -188,7 +222,6 @@
       if (statusEl) statusEl.innerText = message;
     };
 
-    // 4. GRID RENDERER
     window.renderGrid = function() {
       const gridEl = document.getElementById('grid-container');
       if (!gridEl) return;
@@ -207,6 +240,10 @@
         cell.addEventListener('click', () => {
           if (currentTab === 'fleet' && selectedDockShip) {
             tryPlaceSelectedShip(i);
+          } else if (currentTab === 'target') {
+            cell.classList.add(Math.random() < 0.3 ? 'hit' : 'miss');
+            updateStatus(cell.classList.contains('hit') ? "Boom! Direct hit!" : "Splash. Total miss.");
+            triggerHaptic('medium');
           }
         });
 
@@ -214,7 +251,6 @@
       }
     };
 
-    // 5. NAVIGATION & TAB SWITCHER
     window.switchTab = function(tab) {
       if (tab === 'shop') {
         openShop();
@@ -232,9 +268,13 @@
       if (shopBtn) shopBtn.classList.toggle('active', tab === 'shop');
 
       renderGrid();
+      if (tab === 'target') {
+        updateStatus("Fire Grid live. Make 'em bleed.");
+      } else if (tab === 'fleet') {
+        updateStatus("War Fleet locked and loaded.");
+      }
     };
 
-    // 6. SHOP MODAL CONTROLLERS
     window.openShop = function() {
       const modal = document.getElementById('shop-modal');
       const balanceEl = document.getElementById('shop-balance-display');
@@ -243,18 +283,13 @@
         balanceEl.innerText = `BALANCE: ${stats.shipcoins} SHIPCOINS`;
       }
 
-      if (modal) {
-        modal.classList.add('active');
-      }
-
+      if (modal) modal.classList.add('active');
       triggerHaptic('medium');
     };
 
     window.closeShop = function() {
       const modal = document.getElementById('shop-modal');
-      if (modal) {
-        modal.classList.remove('active');
-      }
+      if (modal) modal.classList.remove('active');
       triggerHaptic('light');
     };
 
@@ -263,22 +298,19 @@
         stats.shipcoins -= cost;
         localStorage.setItem('battleship_stats', JSON.stringify(stats));
         updateStatsDisplay();
-        alert("Purchase successful!");
+        alert("Pleasure doing business, degen.");
         closeShop();
         triggerHaptic('heavy');
       } else {
-        alert("Not enough Shipcoins!");
+        alert("You're too broke for this. Go win a match!");
         triggerHaptic('light');
       }
     };
 
-    // 7. DEPLOYMENT & GAMEPLAY HELPERS
     window.toggleOrientation = function() {
       currentOrientation = (currentOrientation === 'H') ? 'V' : 'H';
       const orientationBtn = document.getElementById('orientation-btn');
-      if (orientationBtn) {
-        orientationBtn.innerText = `ROTATE (${currentOrientation === 'H' ? 'HORIZONTAL' : 'VERTICAL'})`;
-      }
+      if (orientationBtn) orientationBtn.innerText = `ROTATE (${currentOrientation})`;
       triggerHaptic('light');
     };
 
@@ -287,7 +319,7 @@
       playerBoard = Array(100).fill(0);
       renderDock();
       renderGrid();
-      updateStatus("Fleet reset. Arrange your ships, Commander.");
+      updateStatus("Wiped the board. Try again.");
       triggerHaptic('medium');
     };
 
@@ -308,7 +340,7 @@
       });
       renderGrid();
       renderDock();
-      updateStatus("Fleet auto-deployed randomly!");
+      updateStatus("Auto-deployed like a true degen.");
       triggerHaptic('heavy');
     };
 
@@ -345,10 +377,10 @@
         selectedDockShip = null;
         renderGrid();
         renderDock();
-        updateStatus(`${ship.name} deployed successfully.`);
+        updateStatus(`${ship.name} dropped.`);
         triggerHaptic('medium');
       } else {
-        updateStatus("Invalid placement position.");
+        updateStatus("Can't put it there, dummy.");
         triggerHaptic('light');
       }
     }
@@ -367,14 +399,13 @@
         shipBtn.onclick = () => {
           selectedDockShip = ship.id;
           renderDock();
-          updateStatus(`Placing ${ship.name}. Select a grid cell.`);
+          updateStatus(`Placing ${ship.name}. Pick a spot.`);
           triggerHaptic('light');
         };
         dockEl.appendChild(shipBtn);
       });
     };
 
-    // 8. INITIAL LOAD
     document.addEventListener('DOMContentLoaded', () => {
       updateStatsDisplay();
       renderDock();
