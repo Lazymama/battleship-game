@@ -560,7 +560,21 @@
     renderGrid(); 
   }
 
- 
+  // Define missing helper functions globally
+  window.renderGrid = function() {
+    const gridContainer = document.getElementById('grid-container') || document.querySelector('.grid-container');
+    if (gridContainer) {
+      // Basic grid rendering fallback if needed
+      gridContainer.innerHTML = ''; 
+    }
+  };
+
+  window.updateStatus = function(message) {
+    const statusEl = document.getElementById('status-display');
+    if (statusEl) {
+      statusEl.innerText = message;
+    }
+  }; 
 
   // Fixes startPvPMatch closing brace issue
   }
