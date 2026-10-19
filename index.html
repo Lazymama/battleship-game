@@ -36,6 +36,13 @@
   .tab-btn { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
   .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 51, 68, 0.5); }
 
+  /* Tactical Ability Bar */
+  .ability-bar { display: none; gap: 6px; width: 340px; margin: 4px 0; }
+  .ability-bar.active { display: flex; }
+  .ability-btn { flex: 1; padding: 6px 4px; background: #15273b; border: 1px solid var(--accent-blue); border-radius: 6px; color: #fff; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .ability-btn.active { background: var(--accent-blue); color: #000; box-shadow: 0 0 8px rgba(0, 188, 212, 0.6); }
+  .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #334155; }
+
   .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.75rem; min-height: 20px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
 
   .board-container { width: 340px; height: 340px; margin: 2px 0; position: relative; background: var(--panel-bg); border-radius: 14px; padding: 8px; border: 2px solid var(--grid-border); box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
@@ -48,7 +55,6 @@
   .cell:hover { background: #1a334e; }
   .cell:active { transform: scale(0.92); }
 
-  /* Realistic Warship Top-Down Styling */
   .cell.ship-part { background-size: cover; background-position: center; }
   .cell.ship-carrier { background: #3b526b; border: 1px solid var(--accent-blue); }
   .cell.ship-battleship { background: #4a627d; border: 1px solid var(--accent-blue); }
@@ -113,7 +119,7 @@
 <div class="stats-bar">
   <div>WINS: <span class="stats-val" id="stat-wins">0</span></div>
   <div>LOSSES: <span class="stats-val" id="stat-losses">0</span></div>
-  <div>RANK: <span class="stats-val" id="stat-rank">CADET</span></div>
+  <div>RANK: <span class="stats-val" id="stat-rank">DEGENERATE</span></div>
 </div>
 
 <div class="mode-switch">
@@ -121,7 +127,20 @@
   <button class="tab-btn" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
 </div>
 
-<div class="status-bar" id="status-msg">SELECT A SHIP FROM DOCK TO DEPLOY.</div>
+<!-- Tactical Ability Bar (Appears during battle) -->
+<div class="ability-bar" id="ability-bar">
+  <button class="ability-btn active" id="abi-normal" onclick="selectAbility('normal')">
+    <span>🎯 STRIKE</span><span>(0⚡)</span>
+  </button>
+  <button class="ability-btn" id="abi-recon" onclick="selectAbility('recon')">
+    <span>📡 SONAR</span><span>(2⚡)</span>
+  </button>
+  <button class="ability-btn" id="abi-hellfire" onclick="selectAbility('hellfire')">
+    <span>🔥 HELLFIRE</span><span>(4⚡)</span>
+  </button>
+</div>
+
+<div class="status-bar" id="status-msg">ARRANGE YOUR FLEET, COMMANDER.</div>
 
 <div class="board-container" id="board-box">
   <div class="grid" id="grid"></div>
@@ -139,14 +158,14 @@
 </div>
 
 <div class="controls">
-  <button class="btn-primary" id="btn-match" onclick="startPvPMatch()" disabled>⚔️ LOCK FLEET & FIND MATCH</button>
+  <button class="btn-primary" id="btn-match" onclick="startPvPMatch()" disabled>⚔️ LOCK FLEET & HUNT</button>
 </div>
 
 <div class="modal-overlay" id="modal">
   <div class="modal-card">
-    <div class="modal-title" id="modal-title">⚠️ FLEET COMMAND</div>
+    <div class="modal-title" id="modal-title">⚠️ BATTLE REPORT</div>
     <div class="modal-text" id="modal-desc"></div>
-    <button class="btn-primary" onclick="closeModal()">DISMISS</button>
+    <button class="btn-primary" onclick="closeModal()">KEEP FIGHTING</button>
   </div>
 </div>
 
@@ -155,6 +174,7 @@
   let socket = null;
   let isMyTurn = false;
   let inBattle = false;
+  let selectedAbility = 'normal';
   let roomId = 'test_room_1';
 
   let energy = 3;
@@ -229,7 +249,7 @@
     const matchBtn = document.getElementById('btn-match');
     if (matchBtn) matchBtn.disabled = !allPlaced;
     if (allPlaced && !inBattle) {
-      updateStatus('FLEET READY! CLICK LOCK FLEET.');
+      updateStatus('FLEET LOCKED & LOADED. READY FOR WAR.');
     }
   }
 
@@ -249,7 +269,7 @@
     selectedDockShip = null;
     renderDock();
     renderGrid();
-    updateStatus('DEPLOYMENT RESET. SELECT A SHIP.');
+    updateStatus('WIPED CLEAN. ARRANGE YOUR SHIPS.');
   }
 
   function placeShipAt(startIdx) {
@@ -311,10 +331,13 @@
     switchTab('target');
     const deployPanel = document.getElementById('deploy-panel');
     if (deployPanel) deployPanel.style.display = 'none';
+    
+    const abilityBar = document.getElementById('ability-bar');
+    if (abilityBar) abilityBar.classList.add('active');
 
     myShots.fill(null);
     enemyShotsOnMe.fill(null);
-    updateStatus('CONNECTING TO WAR NETWORK...');
+    updateStatus('ESTABLISHING BLOOD-LINK...');
     
     if (!socket) socket = io(SERVER_URL);
 
@@ -322,14 +345,14 @@
     socket.emit('join_game', { roomId: roomId, playerBoard: numericBoard });
 
     socket.on('game_state', () => {
-      updateStatus('WAITING FOR ENEMY FLEET...');
+      updateStatus('WAITING FOR ENEMY BAIT...');
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.add('locked');
     });
 
     socket.on('game_start', (data) => {
       isMyTurn = data.turn === socket.id;
-      updateStatus(isMyTurn ? 'YOUR TURN! OPEN FIRE!' : 'OPPONENT IS AIMING...');
+      updateStatus(isMyTurn ? 'YOUR TURN! OBLITERATE THEM!' : 'OPPONENT IS LINING UP...');
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
     });
@@ -350,34 +373,35 @@
         if (data.isHit) {
           playSound('hit');
           triggerShake();
-          updateStatus('🎯 DIRECT HIT! KEEP FIRING!');
+          updateStatus('💥 BULLSEYE! EAT THAT!');
         } else {
           playSound('miss');
-          updateStatus('💦 MISS! ENEMY TURN.');
+          updateStatus('💦 SPLOOSH. TOTAL MISS, CLOWN.');
         }
       } else {
         if (data.isHit) {
           playSound('hit');
           triggerShake();
-          updateStatus('🔥 YOUR FLEET WAS HIT!');
+          updateStatus('🔥 FUCK! THEY TOOK A CHUNK OUTTA US!');
         } else {
           playSound('miss');
-          updateStatus('💦 ENEMY MISSED! YOUR TURN!');
+          updateStatus('💦 HA! THEY MISSED! YOUR TURN TO STRIKE BACK!');
         }
       }
 
       isMyTurn = data.nextTurn === socket.id;
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
+      selectedAbility = 'normal';
       updateUI();
 
       if (data.isGameOver) {
         if (isMeAttacker) {
           stats.wins++;
-          showModal('🏆 VICTORY!', 'Enemy fleet completely obliterated!');
+          showModal('🏆 DOMINATION!', 'You completely wiped the floor with them.');
         } else {
           stats.losses++;
-          showModal('☠️ DEFEAT!', 'Your fleet was wiped out.');
+          showModal('☠️ TOTAL HUMILIATION!', 'Your fleet is sleeping with the fishes.');
         }
         localStorage.setItem('battleship_stats', JSON.stringify(stats));
         updateStatsDisplay();
@@ -385,10 +409,16 @@
     });
 
     socket.on('opponent_left', () => {
-      updateStatus('ENEMY FORFEITED! YOU WIN!');
+      updateStatus('COWARD FLED! EASY WIN!');
       const boardBox = document.getElementById('board-box');
       if (boardBox) boardBox.classList.add('locked');
     });
+  }
+
+  function selectAbility(type) {
+    if ((type === 'recon' && energy < 2) || (type === 'hellfire' && energy < 4)) return;
+    selectedAbility = type;
+    updateUI();
   }
 
   function handleCellClick(idx) {
@@ -398,7 +428,7 @@
     }
 
     if (!isMyTurn || myShots[idx] !== null) return;
-    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: 'normal' });
+    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: selectedAbility });
   }
 
   function triggerShake() {
@@ -441,7 +471,7 @@
   function updateStatsDisplay() {
     document.getElementById('stat-wins').innerText = stats.wins;
     document.getElementById('stat-losses').innerText = stats.losses;
-    const rank = stats.wins >= 10 ? 'ADMIRAL' : stats.wins >= 5 ? 'CAPTAIN' : 'CADET';
+    const rank = stats.wins >= 10 ? 'FLEET ADMIRAL' : stats.wins >= 5 ? 'SEA DOG' : 'DEGENERATE';
     document.getElementById('stat-rank').innerText = rank;
   }
 
@@ -453,6 +483,14 @@
   function updateUI() { 
     const energyVal = document.getElementById('energy-val');
     if (energyVal) energyVal.innerText = energy;
+
+    document.getElementById('abi-normal').classList.toggle('active', selectedAbility === 'normal');
+    document.getElementById('abi-recon').classList.toggle('active', selectedAbility === 'recon');
+    document.getElementById('abi-hellfire').classList.toggle('active', selectedAbility === 'hellfire');
+    
+    document.getElementById('abi-recon').disabled = energy < 2;
+    document.getElementById('abi-hellfire').disabled = energy < 4;
+
     renderGrid(); 
   }
 
