@@ -82,10 +82,10 @@
   /* Deployment Dock */
   .deploy-panel { width: 340px; background: var(--panel-bg); border: 1px solid var(--grid-border); border-radius: 10px; padding: 8px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
   .deploy-title { font-size: 0.7rem; font-weight: 800; color: var(--accent-yellow); text-transform: uppercase; text-align: center; }
-  .dock-ships { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
-  .dock-ship-btn { background: #15273b; border: 1px solid var(--grid-border); border-radius: 5px; padding: 4px 8px; font-size: 0.65rem; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-  .dock-ship-btn.selected { border-color: var(--accent-yellow); background: #233d5a; box-shadow: 0 0 6px rgba(255, 215, 0, 0.4); }
-  .dock-ship-btn.placed { opacity: 0.35; pointer-events: none; text-decoration: line-through; }
+  .dock-ships { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px; }
+  .dock-ship-btn { background: #15273b; border: 1px solid var(--accent-blue); border-radius: 5px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .dock-ship-btn.selected { border-color: var(--accent-yellow); background: #233d5a; box-shadow: 0 0 8px rgba(255, 215, 0, 0.5); }
+  .dock-ship-btn.placed { opacity: 0.35; pointer-events: none; text-decoration: line-through; border-color: #334155; }
 
   .deploy-actions { display: flex; gap: 6px; }
   .btn-action { flex: 1; padding: 6px; background: #1a334e; border: 1px solid var(--accent-blue); border-radius: 6px; color: #fff; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
@@ -169,7 +169,7 @@
   ];
 
   let selectedDockShip = null;
-  let currentOrientation = 'H'; // 'H' or 'V'
+  let currentOrientation = 'H';
   let placedShips = [];
   let playerBoard = Array(100).fill(0);
 
@@ -205,6 +205,7 @@
 
   function renderDock() {
     const dockEl = document.getElementById('dock-ships');
+    if (!dockEl) return;
     dockEl.innerHTML = '';
 
     FLEET_TYPES.forEach(ship => {
@@ -225,7 +226,8 @@
     });
 
     const allPlaced = placedShips.length === FLEET_TYPES.length;
-    document.getElementById('btn-match').disabled = !allPlaced;
+    const matchBtn = document.getElementById('btn-match');
+    if (matchBtn) matchBtn.disabled = !allPlaced;
     if (allPlaced && !inBattle) {
       updateStatus('FLEET READY! CLICK LOCK FLEET.');
     }
@@ -233,7 +235,8 @@
 
   function toggleOrientation() {
     currentOrientation = currentOrientation === 'H' ? 'V' : 'H';
-    document.getElementById('orient-label').innerText = currentOrientation === 'H' ? 'HORIZ' : 'VERT';
+    const orientLabel = document.getElementById('orient-label');
+    if (orientLabel) orientLabel.innerText = currentOrientation === 'H' ? 'HORIZ' : 'VERT';
     if (selectedDockShip) {
       const shipObj = FLEET_TYPES.find(s => s.id === selectedDockShip);
       updateStatus(`PLACING ${shipObj.name.toUpperCase()} (${currentOrientation === 'H' ? 'HORIZ' : 'VERT'})`);
@@ -259,11 +262,11 @@
     for (let i = 0; i < shipObj.size; i++) {
       let r = currentOrientation === 'H' ? row : row + i;
       let c = currentOrientation === 'H' ? col + i : col;
-      if (r > 9 || c > 9) return; // Out of bounds check
+      if (r > 9 || c > 9) return;
       targetIndices.push(r * 10 + c);
     }
 
-    if (targetIndices.some(idx => playerBoard[idx] !== 0)) return; // Collision check
+    if (targetIndices.some(idx => playerBoard[idx] !== 0)) return;
 
     targetIndices.forEach(idx => playerBoard[idx] = shipObj.id);
     placedShips.push({ id: shipObj.id, indices: targetIndices });
@@ -306,10 +309,174 @@
   function startPvPMatch() {
     inBattle = true;
     switchTab('target');
-    document.getElementById('deploy-panel').style.display = 'none';
+    const deployPanel = document.getElementById('deploy-panel');
+    if (deployPanel) deployPanel.style.display = 'none';
 
     myShots.fill(null);
     enemyShotsOnMe.fill(null);
     updateStatus('CONNECTING TO WAR NETWORK...');
     
-    if (!socket) socket = io(
+    if (!socket) socket = io(SERVER_URL);
+
+    const numericBoard = playerBoard.map(v => v !== 0 ? 1 : 0);
+    socket.emit('join_game', { roomId: roomId, playerBoard: numericBoard });
+
+    socket.on('game_state', () => {
+      updateStatus('WAITING FOR ENEMY FLEET...');
+      const boardBox = document.getElementById('board-box');
+      if (boardBox) boardBox.classList.add('locked');
+    });
+
+    socket.on('game_start', (data) => {
+      isMyTurn = data.turn === socket.id;
+      updateStatus(isMyTurn ? 'YOUR TURN! OPEN FIRE!' : 'OPPONENT IS AIMING...');
+      const boardBox = document.getElementById('board-box');
+      if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
+    });
+
+    socket.on('shot_result', (data) => {
+      const isMeAttacker = data.attackerId === socket.id;
+
+      data.hits.forEach(item => {
+        if (isMeAttacker) {
+          myShots[item.idx] = item.isHit ? 'hit' : 'miss';
+        } else {
+          enemyShotsOnMe[item.idx] = item.isHit ? 'hit' : 'miss';
+        }
+      });
+
+      if (isMeAttacker) {
+        energy = data.attackerEnergy;
+        if (data.isHit) {
+          playSound('hit');
+          triggerShake();
+          updateStatus('🎯 DIRECT HIT! KEEP FIRING!');
+        } else {
+          playSound('miss');
+          updateStatus('💦 MISS! ENEMY TURN.');
+        }
+      } else {
+        if (data.isHit) {
+          playSound('hit');
+          triggerShake();
+          updateStatus('🔥 YOUR FLEET WAS HIT!');
+        } else {
+          playSound('miss');
+          updateStatus('💦 ENEMY MISSED! YOUR TURN!');
+        }
+      }
+
+      isMyTurn = data.nextTurn === socket.id;
+      const boardBox = document.getElementById('board-box');
+      if (boardBox) boardBox.classList.toggle('locked', !isMyTurn);
+      updateUI();
+
+      if (data.isGameOver) {
+        if (isMeAttacker) {
+          stats.wins++;
+          showModal('🏆 VICTORY!', 'Enemy fleet completely obliterated!');
+        } else {
+          stats.losses++;
+          showModal('☠️ DEFEAT!', 'Your fleet was wiped out.');
+        }
+        localStorage.setItem('battleship_stats', JSON.stringify(stats));
+        updateStatsDisplay();
+      }
+    });
+
+    socket.on('opponent_left', () => {
+      updateStatus('ENEMY FORFEITED! YOU WIN!');
+      const boardBox = document.getElementById('board-box');
+      if (boardBox) boardBox.classList.add('locked');
+    });
+  }
+
+  function handleCellClick(idx) {
+    if (!inBattle) {
+      if (selectedDockShip) placeShipAt(idx);
+      return;
+    }
+
+    if (!isMyTurn || myShots[idx] !== null) return;
+    socket.emit('fire_shot', { roomId: roomId, idx: idx, ability: 'normal' });
+  }
+
+  function triggerShake() {
+    const box = document.getElementById('board-box');
+    if (box) {
+      box.classList.add('shake');
+      setTimeout(() => box.classList.remove('shake'), 300);
+    }
+  }
+
+  function renderGrid() {
+    const gridEl = document.getElementById('grid');
+    if (!gridEl) return;
+    gridEl.innerHTML = '';
+
+    for (let i = 0; i < 100; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      if (currentTab === 'target') {
+        if (myShots[i] === 'hit') cell.classList.add('hit');
+        else if (myShots[i] === 'miss') cell.classList.add('miss');
+        else cell.onclick = () => handleCellClick(i);
+      } else {
+        const shipId = playerBoard[i];
+        if (shipId !== 0) {
+          cell.classList.add('ship-part', `ship-${shipId}`);
+        }
+        if (!inBattle) {
+          cell.onclick = () => handleCellClick(i);
+        }
+        if (enemyShotsOnMe[i] === 'hit') cell.classList.add('hit');
+        if (enemyShotsOnMe[i] === 'miss') cell.classList.add('miss');
+      }
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function updateStatsDisplay() {
+    document.getElementById('stat-wins').innerText = stats.wins;
+    document.getElementById('stat-losses').innerText = stats.losses;
+    const rank = stats.wins >= 10 ? 'ADMIRAL' : stats.wins >= 5 ? 'CAPTAIN' : 'CADET';
+    document.getElementById('stat-rank').innerText = rank;
+  }
+
+  function updateStatus(msg) { 
+    const statusMsg = document.getElementById('status-msg');
+    if (statusMsg) statusMsg.innerText = msg; 
+  }
+  
+  function updateUI() { 
+    const energyVal = document.getElementById('energy-val');
+    if (energyVal) energyVal.innerText = energy;
+    renderGrid(); 
+  }
+
+  function switchTab(tab) { 
+    currentTab = tab; 
+    document.getElementById('tab-target').classList.toggle('active', tab === 'target');
+    document.getElementById('tab-fleet').classList.toggle('active', tab === 'fleet');
+    renderGrid(); 
+  }
+
+  function showModal(title, desc) { 
+    document.getElementById('modal-title').innerText = title; 
+    document.getElementById('modal-desc').innerText = desc; 
+    document.getElementById('modal').classList.add('show'); 
+  }
+
+  function closeModal() { 
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    document.getElementById('modal').classList.remove('show'); 
+  }
+
+  updateStatsDisplay();
+  renderDock();
+  renderGrid();
+</script>
+</body>
+</html>
