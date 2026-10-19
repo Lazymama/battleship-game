@@ -36,14 +36,13 @@
   .tab-btn { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
   .tab-btn.active { background: var(--accent-red); color: #fff; box-shadow: 0 0 10px rgba(255, 51, 68, 0.5); }
 
-  /* Tactical Ability Bar */
   .ability-bar { display: none; gap: 6px; width: 340px; margin: 4px 0; }
   .ability-bar.active { display: flex; }
   .ability-btn { flex: 1; padding: 6px 4px; background: #15273b; border: 1px solid var(--accent-blue); border-radius: 6px; color: #fff; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .ability-btn.active { background: var(--accent-blue); color: #000; box-shadow: 0 0 8px rgba(0, 188, 212, 0.6); }
   .ability-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #334155; }
 
-  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.75rem; min-height: 20px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .status-bar { text-align: center; margin: 4px 0; font-weight: 800; font-size: 0.75rem; min-height: 22px; color: var(--accent-yellow); text-shadow: 0 0 8px rgba(255,215,0,0.3); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 10px; }
 
   .board-container { width: 340px; height: 340px; margin: 2px 0; position: relative; background: var(--panel-bg); border-radius: 14px; padding: 8px; border: 2px solid var(--grid-border); box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
   .board-container.shake { animation: screenShake 0.3s ease-in-out; }
@@ -85,7 +84,6 @@
   .cell.miss { background: rgba(15, 35, 55, 0.85) !important; border: 1px solid #1e3a5f !important; }
   .cell.miss::after { content: '💧'; font-size: 0.85rem; z-index: 2; opacity: 0.7; animation: splashAnim 0.3s ease-out; }
 
-  /* Deployment Dock */
   .deploy-panel { width: 340px; background: var(--panel-bg); border: 1px solid var(--grid-border); border-radius: 10px; padding: 8px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
   .deploy-title { font-size: 0.7rem; font-weight: 800; color: var(--accent-yellow); text-transform: uppercase; text-align: center; }
   .dock-ships { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px; }
@@ -127,7 +125,6 @@
   <button class="tab-btn" id="tab-target" onclick="switchTab('target')">🎯 Fire Grid</button>
 </div>
 
-<!-- Tactical Ability Bar (Appears during battle) -->
 <div class="ability-bar" id="ability-bar">
   <button class="ability-btn active" id="abi-normal" onclick="selectAbility('normal')">
     <span>🎯 STRIKE</span><span>(0⚡)</span>
@@ -146,7 +143,6 @@
   <div class="grid" id="grid"></div>
 </div>
 
-<!-- Fleet Setup & Deployment Dock -->
 <div class="deploy-panel" id="deploy-panel">
   <div class="deploy-title">⚓ FLEET DEPLOYMENT DOCK</div>
   <div class="dock-ships" id="dock-ships"></div>
@@ -373,20 +369,18 @@
         if (data.isHit) {
           playSound('hit');
           triggerShake();
-          updateStatus('💥 BULLSEYE! EAT THAT!');
         } else {
           playSound('miss');
-          updateStatus('💦 SPLOOSH. TOTAL MISS, CLOWN.');
         }
+        updateStatus(data.attackerTaunt); // <--- Show attacker message
       } else {
         if (data.isHit) {
           playSound('hit');
           triggerShake();
-          updateStatus('🔥 FUCK! THEY TOOK A CHUNK OUTTA US!');
         } else {
           playSound('miss');
-          updateStatus('💦 HA! THEY MISSED! YOUR TURN TO STRIKE BACK!');
         }
+        updateStatus(data.defenderTaunt); // <--- Show defender reaction message
       }
 
       isMyTurn = data.nextTurn === socket.id;
